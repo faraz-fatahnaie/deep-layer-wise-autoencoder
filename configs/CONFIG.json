@@ -1,0 +1,33 @@
+{
+  "cuda": true,
+  "dataset": {
+    "name": "UNSW_NB15",
+    "classification_mode": "binary",
+    "n_worker": 4
+
+  },
+  "autoencoder": {
+    "pretrain_epochs": 10,
+    "pretrain_batch_size": 100,
+    "loss_fn": "mae",
+    "activation": "tanh",
+    "optimizer": "sgd",
+    "lr_schedule": true,
+    "initial_lr": 0.1,
+    "finial_lr": 0.00001,
+    "decay": 0.5
+
+  },
+  "classifier": {
+    "name": "DNN",
+    "epoch": 10,
+    "batch_size": 100,
+    "loss_fn": "eqloss",
+    "optimizer": "adam",
+    "lr": 0.01,
+    "min_lr": 0.000001,
+    "scheduler": true,
+    "decay": 0.0001,
+    "regularization": ""
+  }
+}
