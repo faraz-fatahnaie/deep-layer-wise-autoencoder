@@ -20,11 +20,10 @@ class DNN(Model):
                     bias_regularizer=tf.keras.regularizers.L2(1e-4),
                     activity_regularizer=tf.keras.regularizers.L2(1e-5))(query_input)
         out = Dense(out_shape,
-                    # activation=self.activation,
+                    activation=self.activation,
                     kernel_regularizer=tf.keras.regularizers.L1L2(l1=1e-5, l2=1e-4),
                     bias_regularizer=tf.keras.regularizers.L2(1e-4),
                     activity_regularizer=tf.keras.regularizers.L2(1e-5))(out)
-        out = keras.layers.activation.Softmax(axis=1)(out)
         self.model = Model(inputs=query_input, outputs=out)
 
     def call(self, inputs):
