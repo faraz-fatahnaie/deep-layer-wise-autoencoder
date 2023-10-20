@@ -1,11 +1,14 @@
 import tensorflow as tf
 from keras.layers import Input, Conv1D, MaxPooling1D, LSTM, Dropout, Dense, Flatten, Reshape
 from keras.models import Model, Sequential
+import numpy as np
+
+seed = np.random.seed(0)
 
 
-class CNNLSTM(Model):
+class CnnLstm(Model):
     def __init__(self, in_shape: tuple = (118, 1), out_shape: int = 2):
-        super(CNNLSTM, self).__init__()
+        super(CnnLstm, self).__init__()
 
         self.in_shape = in_shape
         self.out_shape = out_shape
@@ -42,10 +45,17 @@ class CNNLSTM(Model):
                              activity_regularizer=tf.keras.regularizers.L2(1e-5)
                              ))
 
-        self.model.summary()
+        self.initialize()
+        # self.model.summary()
 
     def call(self, inputs):
         return self.model(inputs)
+
+    def initialize(self):
+        for layer in self.model.layers:
+            if isinstance(layer, (Conv1D, Dense)):
+                layer.kernel_initializer = tf.keras.initializers.GlorotNormal(seed=seed)
+                layer.bias_initializer = tf.keras.initializers.Zeros()
 
     def build_graph(self):
         x = tf.keras.Input(shape=self.in_shape)
@@ -53,5 +63,5 @@ class CNNLSTM(Model):
 
 
 if __name__ == "__main__":
-    cf = CNNLSTM((118, 1))
+    cf = CnnLstm((118, 1))
     cf = cf.build_graph()
