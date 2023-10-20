@@ -1,8 +1,9 @@
-import keras.activations
 import tensorflow as tf
-from keras.layers import Input, Conv1D, MaxPooling1D, Conv2D, MaxPooling2D, \
-    BatchNormalization, Attention, Flatten, Dense
+from keras.layers import Input, Dense
 from keras.models import Model
+import numpy as np
+
+seed = np.random.seed(0)
 
 
 class DNN(Model):
@@ -26,8 +27,17 @@ class DNN(Model):
                     activity_regularizer=tf.keras.regularizers.L2(1e-5))(out)
         self.model = Model(inputs=query_input, outputs=out)
 
+        self.initialize()
+        self.model.summary()
+
     def call(self, inputs):
         return self.model(inputs)
+
+    def initialize(self):
+        for layer in self.model.layers:
+            if isinstance(layer, Dense):
+                layer.kernel_initializer = tf.keras.initializers.GlorotNormal(seed=seed)
+                layer.bias_initializer = tf.keras.initializers.Zeros()
 
     def build_graph(self):
         x = tf.keras.Input(shape=self.in_shape)
@@ -36,4 +46,3 @@ class DNN(Model):
 
 if __name__ == "__main__":
     cf = DNN(in_shape=(118,), out_shape=2).build_graph()
-    cf.summary()
