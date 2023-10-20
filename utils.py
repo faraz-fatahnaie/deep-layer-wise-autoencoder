@@ -1,3 +1,5 @@
+import os
+import pandas as pd
 import tensorflow as tf
 from keras.optimizers import Adam, SGD, RMSprop
 
@@ -26,6 +28,19 @@ def parse_data(df, dataset_name: str, classification_mode: str, mode: str = 'np'
         return dt.to_numpy(), lb.to_numpy()
     elif mode == 'df':
         return dt, lb
+
+
+def shuffle_dataframe(dataframe_path):
+    dataframe = pd.read_csv(dataframe_path)
+    shuffled_dataframe = dataframe.sample(frac=1).reset_index(drop=True)
+
+    base_name = os.path.splitext(os.path.basename(dataframe_path))[0]
+    file_extension = os.path.splitext(dataframe_path)[-1]
+    new_file_name = base_name + file_extension
+
+    shuffled_dataframe.to_csv(new_file_name, index=False)
+
+    print(f"Shuffled DataFrame saved as {new_file_name}")
 
 
 class OptimizerFactory:
@@ -76,3 +91,7 @@ class OptimizerFactory:
                 return RMSprop(learning_rate=self.init_lr)
 
 
+if __name__ == "__main__":
+    df_path = 'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\dataset\\' \
+              'UNSW_NB15\\train_binary_2neuron_labelOnehot.csv'
+    shuffle_dataframe(df_path)
