@@ -1,14 +1,18 @@
+import numpy as np
 import tensorflow as tf
 from keras.layers import Input, Conv1D, MaxPooling1D, Conv2D, MaxPooling2D, \
     BatchNormalization, Attention, Flatten, Dense
 from keras.models import Model
 
+seed = np.random.seed(0)
 
-class ATTENTION1D(Model):
+
+class Attention1D(Model):
     def __init__(self, in_shape: tuple = (118, 1), out_shape: int = 2):
-        super(ATTENTION1D, self).__init__()
+        super(Attention1D, self).__init__()
         self.in_shape = in_shape
-        if out_shape == 1:
+        self.out_shape = out_shape
+        if self.out_shape == 1:
             self.activation = 'sigmoid'
         else:
             self.activation = 'softmax'
@@ -31,16 +35,24 @@ class ATTENTION1D(Model):
         attention3 = Attention()([norm3, norm3])
 
         flatten = Flatten()(attention3)
-        output = Dense(out_shape,
-                       # activation=self.activation,
+        output = Dense(self.out_shape,
+                       activation=self.activation,
                        kernel_regularizer=tf.keras.regularizers.L1L2(l1=1e-5, l2=1e-4),
                        bias_regularizer=tf.keras.regularizers.L2(1e-4),
                        activity_regularizer=tf.keras.regularizers.L2(1e-5))(flatten)
 
         self.model = Model(inputs=query_input, outputs=output)
 
+        self.initialize()
+
     def call(self, inputs):
         return self.model(inputs)
+
+    def initialize(self):
+        for layer in self.model.layers:
+            if isinstance(layer, (Conv1D, Dense)):
+                layer.kernel_initializer = tf.keras.initializers.GlorotNormal(seed=seed)
+                layer.bias_initializer = tf.keras.initializers.Zeros()
 
     def build_graph(self):
         x = tf.keras.Input(shape=self.in_shape)
@@ -48,5 +60,5 @@ class ATTENTION1D(Model):
 
 
 if __name__ == "__main__":
-    cf = ATTENTION1D()
-    cf.build_graph((118, 1))
+    cf = Attention1D((118, 1))
+    cf.build_graph()
