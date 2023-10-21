@@ -1,29 +1,15 @@
 import numpy as np
 import pandas as pd
-import logging
-import matplotlib.pyplot as plt
 import tensorflow as tf
+from tensorflow.python.client import device_lib
 import keras
-import keras.backend as K
-from keras.layers import Input, Convolution2D, Activation, MaxPooling2D, \
-    Dense, BatchNormalization, Dropout
-from keras.layers.core import Flatten
-from keras.optimizers import SGD, Adam
-from keras.models import Model
-from keras.utils import np_utils
-from keras.constraints import maxnorm
-from keras.regularizers import l2
-from keras.callbacks import LearningRateScheduler
-from keras.layers import BatchNormalization
 from model.ATTENTION import Attention1D
 from model.CNNLSTM import CnnLstm
 from model.DNN import DNN
+from model.SE import SE
 from sklearn import metrics
-from keras.layers import Input, Conv1D, MaxPooling1D, Conv2D, MaxPooling2D, \
-    BatchNormalization, Attention, Flatten, Dense
 from keras.models import Model
 from utils import parse_data
-from model.SP import SP
 from model.CNN import CnnMagneto
 from loss.EQLv2 import EQLv2
 from loss.focal_loss import focal_loss
@@ -31,16 +17,18 @@ import os
 from pathlib import Path
 from configs.setting import setting
 import json
-from utils import OptimizerFactory
-import sys
-
+from utils import OptimizerFactory, set_seed
+from layer_wise_autoencoder import ae_factory, partial_ae_factory
 
 print(keras.__version__)
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-# physical_devices = tf.config.list_physical_devices('GPU')
+print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
+print(device_lib.list_local_devices())
+
 tf.compat.v1.disable_eager_execution()
 
+set_seed()
 i = 1
 flag = True
 SAVE_PATH_ = ''
@@ -78,118 +66,97 @@ train = pd.read_csv(
 test = pd.read_csv(
     f'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\dataset\\{dataset_name}'
     f'\\test_binary_2neuron_labelOnehot.csv')
-seed = np.random.seed(0)
 
 X_train, y_train = parse_data(train, config['DATASET_NAME'], config['CLASSIFICATION_MODE'])
 X_test, y_test = parse_data(test, config['DATASET_NAME'], config['CLASSIFICATION_MODE'])
 print(X_train.shape, y_train.shape, X_test.shape, y_test.shape)
 
-opt_factory_ae = OptimizerFactory(opt=config['AE_OPTIMIZER'],
-                                  lr_schedule=config['AE_SCHEDULE'],
-                                  len_dataset=len(X_train),
-                                  epochs=config['AE_EPOCH'],
-                                  batch_size=config['AE_BATCH_SIZE'],
-                                  init_lr=config['AE_INITIAL_LR'],
-                                  final_lr=config['AE_FINAL_LR'])
+hidden_size = config['AE_HIDDEN_SIZE']
+activation = config['AE_ACTIVATION']
+loss_fn = config['AE_LOSS']
+ae_epoch = config['AE_EPOCH']
 
-hidden_size = [128, 64, 32]
+ae_filename = 'AE_' + '_'.join(map(str, hidden_size)) + f'_{activation}_{loss_fn}_E{ae_epoch}'
+ae_path = Path(f'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\trained_ae\\{ae_filename}.keras')
 
-# ================= LAYER 1 =================
-input_img = Input(shape=(X_train.shape[1],))
-distorted_input1 = Dropout(0)(input_img)
-encoded1 = Dense(hidden_size[0], activation=config['AE_ACTIVATION'],
-                 kernel_initializer=tf.keras.initializers.GlorotNormal(seed=seed))(distorted_input1)
-encoded1_bn = BatchNormalization()(encoded1)
-decoded1 = Dense(X_train.shape[1], activation=config['AE_ACTIVATION'],
-                 kernel_initializer=tf.keras.initializers.GlorotNormal(seed=seed))(encoded1_bn)
+if os.path.isfile(ae_path) and not config['AE_TRAINABLE']:
+    deep_autoencoder = keras.models.load_model(ae_path)
+    print(f'DAE loaded from {ae_path}')
+else:
+    # TODO: train partial ae independent from hidden_size
+    # ================= LAYER 1 =================
+    autoencoder1, encoder1 = partial_ae_factory(in_shape=X_train.shape[1],
+                                                hidden_size=hidden_size[0],
+                                                activation=config['AE_ACTIVATION'])
 
-autoencoder1 = Model(inputs=input_img, outputs=decoded1)
-encoder1 = Model(inputs=input_img, outputs=encoded1_bn)
+    # ================= LAYER 2 =================
+    autoencoder2, encoder2 = partial_ae_factory(in_shape=hidden_size[0],
+                                                hidden_size=hidden_size[1],
+                                                activation=config['AE_ACTIVATION'])
+    # ================= LAYER 3 =================
+    autoencoder3, encoder3 = partial_ae_factory(in_shape=hidden_size[1],
+                                                hidden_size=hidden_size[2],
+                                                activation=config['AE_ACTIVATION'])
 
-# ================= LAYER 2 =================
-encoded1_input = Input(shape=(hidden_size[0],))
-distorted_input2 = Dropout(0)(encoded1_input)
-encoded2 = Dense(hidden_size[1], activation=config['AE_ACTIVATION'],
-                 kernel_initializer=tf.keras.initializers.GlorotNormal(seed=seed))(distorted_input2)
-encoded2_bn = BatchNormalization()(encoded2)
-decoded2 = Dense(hidden_size[0], activation=config['AE_ACTIVATION'],
-                 kernel_initializer=tf.keras.initializers.GlorotNormal(seed=seed))(encoded2_bn)
+    # PRETRAIN STEP: AutoEncoder Layer-wise Training
+    opt_factory_ae = OptimizerFactory(opt=config['AE_OPTIMIZER'],
+                                      lr_schedule=config['AE_SCHEDULE'],
+                                      len_dataset=len(X_train),
+                                      epochs=config['AE_EPOCH'],
+                                      batch_size=config['AE_BATCH_SIZE'],
+                                      init_lr=config['AE_INITIAL_LR'],
+                                      final_lr=config['AE_FINAL_LR'])
 
-autoencoder2 = Model(inputs=encoded1_input, outputs=decoded2)
-encoder2 = Model(inputs=encoded1_input, outputs=encoded2_bn)
+    sgd1 = opt_factory_ae.get_opt()
+    sgd2 = opt_factory_ae.get_opt()
+    sgd3 = opt_factory_ae.get_opt()
 
-# ================= LAYER 3 =================
-encoded2_input = Input(shape=(hidden_size[1],))
-distorted_input3 = Dropout(0)(encoded2_input)
-encoded3 = Dense(hidden_size[2], activation=config['AE_ACTIVATION'],
-                 kernel_initializer=tf.keras.initializers.GlorotNormal(seed=seed))(distorted_input3)
-encoded3_bn = BatchNormalization()(encoded3)
-decoded3 = Dense(hidden_size[1], activation=config['AE_ACTIVATION'],
-                 kernel_initializer=tf.keras.initializers.GlorotNormal(seed=seed))(encoded3_bn)
+    autoencoder1.compile(loss=config['AE_LOSS'], optimizer=sgd1)
+    autoencoder2.compile(loss=config['AE_LOSS'], optimizer=sgd2)
+    autoencoder3.compile(loss=config['AE_LOSS'], optimizer=sgd3)
 
-autoencoder3 = Model(inputs=encoded2_input, outputs=decoded3)
-encoder3 = Model(inputs=encoded2_input, outputs=encoded3_bn)
+    encoder1.compile(loss=config['AE_LOSS'], optimizer=sgd1)
+    encoder2.compile(loss=config['AE_LOSS'], optimizer=sgd2)
+    encoder3.compile(loss=config['AE_LOSS'], optimizer=sgd3)
 
-# PRETRAIN STEP: AutoEncoder Layer-wise Training
-sgd1 = opt_factory_ae.get_opt()
-sgd2 = opt_factory_ae.get_opt()
-sgd3 = opt_factory_ae.get_opt()
+    autoencoder1.fit(X_train, X_train,
+                     epochs=config['AE_EPOCH'], batch_size=config['AE_BATCH_SIZE'],
+                     # validation_split=0.20,
+                     shuffle=False
+                     )
 
-autoencoder1.compile(loss=config['AE_LOSS'], optimizer=sgd1)
-autoencoder2.compile(loss=config['AE_LOSS'], optimizer=sgd2)
-autoencoder3.compile(loss=config['AE_LOSS'], optimizer=sgd3)
+    first_layer_code = encoder1.predict(X_train)
+    autoencoder2.fit(first_layer_code, first_layer_code,
+                     epochs=config['AE_EPOCH'], batch_size=config['AE_BATCH_SIZE'],
+                     # validation_split=0.20,
+                     shuffle=False
+                     )
 
-encoder1.compile(loss=config['AE_LOSS'], optimizer=sgd1)
-encoder2.compile(loss=config['AE_LOSS'], optimizer=sgd2)
-encoder3.compile(loss=config['AE_LOSS'], optimizer=sgd3)
+    second_layer_code = encoder2.predict(first_layer_code)
+    autoencoder3.fit(second_layer_code, second_layer_code,
+                     epochs=config['AE_EPOCH'], batch_size=config['AE_BATCH_SIZE'],
+                     # validation_split=0.20,
+                     shuffle=False
+                     )
 
-# Layer-wise training
-autoencoder1.fit(X_train, X_train,
-                 epochs=config['AE_EPOCH'], batch_size=config['AE_BATCH_SIZE'],
-                 # validation_split=0.20,
-                 # shuffle=True
-                 )
+    # FINETUNE STEP
+    # Setting the Weights of the Deep Autoencoder which has Learned in Layer-wise Training
+    deep_autoencoder = ae_factory(in_shape=X_train.shape[1], hidden_size=hidden_size, activation=activation)
+    # deep_autoencoder.compile(loss=config['AE_LOSS'], optimizer=sgd1)
 
-first_layer_code = encoder1.predict(X_train)
-autoencoder2.fit(first_layer_code, first_layer_code,
-                 epochs=config['AE_EPOCH'], batch_size=config['AE_BATCH_SIZE'],
-                 # validation_split=0.20,
-                 # shuffle=True
-                 )
+    deep_autoencoder.layers[0].set_weights(autoencoder1.layers[2].get_weights())  # first dense layer
+    deep_autoencoder.layers[1].set_weights(autoencoder1.layers[3].get_weights())  # first bn layer
+    deep_autoencoder.layers[2].set_weights(autoencoder2.layers[2].get_weights())  # second dense layer
+    deep_autoencoder.layers[3].set_weights(autoencoder2.layers[3].get_weights())  # second bn layer
+    deep_autoencoder.layers[4].set_weights(autoencoder3.layers[2].get_weights())  # third dense layer
+    deep_autoencoder.layers[5].set_weights(autoencoder3.layers[3].get_weights())  # third bn layer
+    deep_autoencoder.layers[6].set_weights(autoencoder3.layers[4].get_weights())  # first decoder
+    deep_autoencoder.layers[7].set_weights(autoencoder2.layers[4].get_weights())  # second decoder
+    deep_autoencoder.layers[8].set_weights(autoencoder1.layers[4].get_weights())  # third decoder
 
-second_layer_code = encoder2.predict(first_layer_code)
-autoencoder3.fit(second_layer_code, second_layer_code,
-                 epochs=config['AE_EPOCH'], batch_size=config['AE_BATCH_SIZE'],
-                 # validation_split=0.20,
-                 # shuffle=True
-                 )
+    deep_autoencoder.save(SAVE_PATH_.joinpath("DAE.keras"))
+    deep_autoencoder.save(ae_path)
 
-# FINETUNE STEP
-# Setting the Weights of the Deep Autoencoder which has Learned in Layer-wise Training
-encoded1_da = Dense(hidden_size[0], activation=config['AE_ACTIVATION'])(input_img)
-encoded1_da_bn = BatchNormalization()(encoded1_da)
-encoded2_da = Dense(hidden_size[1], activation=config['AE_ACTIVATION'])(encoded1_da_bn)
-encoded2_da_bn = BatchNormalization()(encoded2_da)
-encoded3_da = Dense(hidden_size[2], activation=config['AE_ACTIVATION'])(encoded2_da_bn)
-encoded3_da_bn = BatchNormalization()(encoded3_da)
-decoded3_da = Dense(hidden_size[1], activation=config['AE_ACTIVATION'])(encoded3_da_bn)
-decoded2_da = Dense(hidden_size[0], activation=config['AE_ACTIVATION'])(decoded3_da)
-decoded1_da = Dense(X_train.shape[1], activation=config['AE_ACTIVATION'])(decoded2_da)
-
-deep_autoencoder = Model(inputs=input_img, outputs=decoded1_da)
-# deep_autoencoder.compile(loss=config['AE_LOSS'], optimizer=sgd1)
-
-deep_autoencoder.layers[1].set_weights(autoencoder1.layers[2].get_weights())  # first dense layer
-deep_autoencoder.layers[2].set_weights(autoencoder1.layers[3].get_weights())  # first bn layer
-deep_autoencoder.layers[3].set_weights(autoencoder2.layers[2].get_weights())  # second dense layer
-deep_autoencoder.layers[4].set_weights(autoencoder2.layers[3].get_weights())  # second bn layer
-deep_autoencoder.layers[5].set_weights(autoencoder3.layers[2].get_weights())  # third dense layer
-deep_autoencoder.layers[6].set_weights(autoencoder3.layers[3].get_weights())  # third bn layer
-deep_autoencoder.layers[7].set_weights(autoencoder3.layers[4].get_weights())  # first decoder
-deep_autoencoder.layers[8].set_weights(autoencoder2.layers[4].get_weights())  # second decoder
-deep_autoencoder.layers[9].set_weights(autoencoder1.layers[4].get_weights())  # third decoder
-
-deep_autoencoder.save(SAVE_PATH_.joinpath("DAE.keras"))
 # X_train_reconstructed = deep_autoencoder.predict(X_train)
 # X_test_reconstructed = deep_autoencoder.predict(X_test)
 # print(X_train_reconstructed.shape, y_train.shape)
@@ -202,7 +169,8 @@ classifier = {
     'DNN': DNN(in_shape=(X_train.shape[1],), out_shape=y_train.shape[1]).build_graph(),
     'ATTENTION': Attention1D(in_shape=(X_train.shape[1], 1), out_shape=y_train.shape[1]).build_graph(),
     'CNN': CnnMagneto(in_shape=(X_train.shape[1], 1), out_shape=y_train.shape[1]).build_graph(),
-    'CNNLSTM': CnnLstm(in_shape=(X_train.shape[1], 1), out_shape=y_train.shape[1]).build_graph()
+    'CNNLSTM': CnnLstm(in_shape=(X_train.shape[1], 1), out_shape=y_train.shape[1]).build_graph(),
+    'SE': SE(in_shape=(X_train.shape[1], 1), out_shape=y_train.shape[1]).build_graph()
 
 }
 
@@ -211,12 +179,7 @@ ae_out = deep_autoencoder(input_img)
 cf_out = classifier[config['MODEL_NAME']](ae_out)
 model = Model(inputs=input_img, outputs=cf_out)
 
-# sp = SP(classification_mode='binary')
-# decoded1_da = tf.keras.layers.Reshape((14, 14))(decoded1_da)
-# sp_out = sp(decoded1_da)
-# classifier = Model(inputs=input_img, outputs=sp_out)
-
-# opt_factory_ae = OptimizerFactory(opt=config['OPTIMIZER'],
+# opt_factory_cf = OptimizerFactory(opt=config['OPTIMIZER'],
 #                                   lr_schedule=config['SCHEDULER'],
 #                                   len_dataset=len(X_train),
 #                                   epochs=config['EPOCHS'],
@@ -227,7 +190,7 @@ model = Model(inputs=input_img, outputs=cf_out)
 # for layer in deep_autoencoder.layers[:]:
 #     layer.trainable = False
 #
-# model.compile(loss='categorical_crossentropy', optimizer=opt_factory_ae.get_opt(), metrics=['accuracy'])
+# model.compile(loss='categorical_crossentropy', optimizer=opt_factory_cf.get_opt(), metrics=['accuracy'])
 # model_checkpoint = tf.keras.callbacks.ModelCheckpoint(
 #     filepath=CHECKPOINT_PATH_,
 #     save_weights_only=True,
@@ -241,9 +204,10 @@ model = Model(inputs=input_img, outputs=cf_out)
 #           batch_size=config['BATCH_SIZE'],
 #           shuffle=True,
 #           callbacks=[model_checkpoint])
-#
-# for layer in deep_autoencoder.layers[:]:
-#     layer.trainable = True
+
+
+for layer in deep_autoencoder.layers[:]:
+    layer.trainable = True
 
 opt_factory_cf = OptimizerFactory(opt=config['OPTIMIZER'],
                                   lr_schedule=config['SCHEDULER'],
@@ -274,7 +238,7 @@ model.fit(X_train, y_train,
           validation_data=(X_test, y_test),
           epochs=config['EPOCHS'],
           batch_size=config['BATCH_SIZE'],
-          # shuffle=True,
+          shuffle=False,
           callbacks=[model_checkpoint, csv_logger])
 
 deep_autoencoder.save(SAVE_PATH_.joinpath("DAE_FINETUNE.keras"))
@@ -284,6 +248,8 @@ model.load_weights(CHECKPOINT_PATH_)
 pred = model.predict(X_test)
 pred = np.argmax(pred, axis=1)
 y_eval = np.argmax(y_test, axis=1)
+pred_df = pd.DataFrame({'y_pred': pred, 'y_true': y_eval})
+pred_df.to_csv(SAVE_PATH_.joinpath(os.path.join('prediction' + '.csv')), index=False)
 
 result = dict()
 result['score'] = metrics.accuracy_score(y_eval, pred)
