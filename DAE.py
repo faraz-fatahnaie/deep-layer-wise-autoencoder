@@ -76,7 +76,7 @@ activation = config['AE_ACTIVATION']
 loss_fn = config['AE_LOSS']
 ae_epoch = config['AE_EPOCH']
 
-ae_filename = 'AE_' + '_'.join(map(str, hidden_size)) + f'_{activation}_{loss_fn}_E{ae_epoch}'
+ae_filename = f'AE_{dataset_name}_' + '_'.join(map(str, hidden_size)) + f'_{activation}_{loss_fn}_E{ae_epoch}'
 ae_path = Path(f'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\trained_ae\\{ae_filename}.keras')
 
 if os.path.isfile(ae_path) and not config['AE_TRAINABLE']:
