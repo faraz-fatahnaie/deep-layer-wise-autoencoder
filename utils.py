@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from pathlib import Path
 import pandas as pd
 import tensorflow as tf
@@ -29,6 +30,12 @@ def parse_data(df, dataset_name: str, classification_mode: str, mode: str = 'np'
         return dt.to_numpy(), lb.to_numpy()
     elif mode == 'df':
         return dt, lb
+
+
+def set_seed():
+    tf.random.set_seed(0)
+    tf.keras.utils.set_random_seed(0)
+    np.random.seed(0)
 
 
 def shuffle_dataframe(dataframe_path):
