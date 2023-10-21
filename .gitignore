@@ -1,0 +1,10 @@
+session
+trained_ae
+!dataset/NSL_KDD/README.md
+!dataset/UNSW_NB15/README.md
+!dataset/KDD_CUP99/README.md
+!dataset/CICIDS/README.md
+dataset/NSL_KDD/*
+dataset/UNSW_NB15/*
+dataset/KDD_CUP99/*
+dataset/CICIDS/*
