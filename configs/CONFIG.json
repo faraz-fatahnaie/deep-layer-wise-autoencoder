@@ -1,13 +1,15 @@
 {
   "cuda": true,
   "dataset": {
-    "name": "UNSW_NB15",
+    "name": "KDD_CUP99",
     "classification_mode": "binary",
     "n_worker": 4
 
   },
   "autoencoder": {
-    "pretrain_epochs": 10,
+    "trainable": true,
+    "hidden_size": [128, 64, 32],
+    "pretrain_epochs": 50,
     "pretrain_batch_size": 100,
     "loss_fn": "mae",
     "activation": "tanh",
@@ -19,12 +21,12 @@
 
   },
   "classifier": {
-    "name": "DNN",
-    "epoch": 10,
+    "name": "ATTENTION",
+    "epoch": 20,
     "batch_size": 100,
-    "loss_fn": "eqloss",
+    "loss_fn": "cce",
     "optimizer": "adam",
-    "lr": 0.01,
+    "lr": 0.001,
     "min_lr": 0.000001,
     "scheduler": true,
     "decay": 0.0001,

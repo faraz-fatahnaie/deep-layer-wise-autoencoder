@@ -6,6 +6,7 @@ def setting(config_file=None):
     config = dict()
     BASE_DIR = Path(__file__).resolve().parent.parent
     BASE_DIR.joinpath('session').mkdir(exist_ok=True)
+    BASE_DIR.joinpath('trained_ae').mkdir(exist_ok=True)
 
     if config_file is None:
         config_name = 'CONFIG'  # config file name in config dir
@@ -18,6 +19,8 @@ def setting(config_file=None):
     config['DATASET_PATH'] = BASE_DIR.joinpath('dataset', config['DATASET_NAME'])
     config['NUM_WORKER'] = config_file['dataset']['n_worker']
 
+    config['AE_TRAINABLE'] = config_file['autoencoder']['trainable']
+    config['AE_HIDDEN_SIZE'] = config_file['autoencoder']['hidden_size']
     config['AE_EPOCH'] = config_file['autoencoder']['pretrain_epochs']
     config['AE_BATCH_SIZE'] = config_file['autoencoder']['pretrain_batch_size']
     config['AE_LOSS'] = config_file['autoencoder']['loss_fn']
