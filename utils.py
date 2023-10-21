@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import pandas as pd
 import tensorflow as tf
 from keras.optimizers import Adam, SGD, RMSprop
@@ -34,9 +35,10 @@ def shuffle_dataframe(dataframe_path):
     dataframe = pd.read_csv(dataframe_path)
     shuffled_dataframe = dataframe.sample(frac=1).reset_index(drop=True)
 
+    base_path = os.path.dirname(dataframe_path)
     base_name = os.path.splitext(os.path.basename(dataframe_path))[0]
     file_extension = os.path.splitext(dataframe_path)[-1]
-    new_file_name = base_name + file_extension
+    new_file_name = Path(base_path).joinpath(base_name + file_extension)
 
     shuffled_dataframe.to_csv(new_file_name, index=False)
 
@@ -93,5 +95,5 @@ class OptimizerFactory:
 
 if __name__ == "__main__":
     df_path = 'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\dataset\\' \
-              'UNSW_NB15\\train_binary_2neuron_labelOnehot.csv'
+              'KDD_CUP99\\train_binary_2neuron_labelOnehot.csv'
     shuffle_dataframe(df_path)
