@@ -1,15 +1,21 @@
 import os
+import time
+from functools import wraps
+
 import numpy as np
 from pathlib import Path
 import pandas as pd
+from keras.callbacks import Callback
+from pandas import DataFrame
 import tensorflow as tf
+import random
 from keras.optimizers import Adam, SGD, RMSprop
 
 
 def parse_data(df, dataset_name: str, classification_mode: str, mode: str = 'np'):
     classes = []
     if classification_mode == 'binary':
-        classes = df.columns[-2:]
+        classes = df.columns[-1:]
     elif classification_mode == 'multi':
         if dataset_name in ['NSL_KDD', 'KDD_CUP99']:
             classes = df.columns[-5:]
@@ -32,10 +38,44 @@ def parse_data(df, dataset_name: str, classification_mode: str, mode: str = 'np'
         return dt, lb
 
 
-def set_seed():
-    tf.random.set_seed(0)
-    tf.keras.utils.set_random_seed(0)
-    np.random.seed(0)
+def result(cm):
+    tp = cm[0][0]  # normal as normal
+    fp = cm[0][1]  # normal predicted attack
+    fn = cm[1][0]  # attack predicted normal
+    tn = cm[1][1]  # attack as attack
+    attacks = tn + fn
+    normals = fp + tp
+    print('ATTACKS SAMPLES', attacks)
+    print('NORMAL SAMPLES', normals)
+
+    OA = (tp + tn) / (attacks + normals)
+    AA = ((tp / normals) + (tn / attacks)) / 2
+    P = tp / (tp + fp)
+    R = tp / (tp + fn)
+    F1 = 2 * ((P * R) / (P + R))
+    FAR = fn / (tn + fn)
+    TPR = tp / (tp + fn)
+    return [OA, AA, P, R, F1, FAR, TPR]
+
+
+def set_seed(seed):
+    tf.random.set_seed(seed)
+    tf.keras.utils.set_random_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
+
+def timeit(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"Execution time of '{func.__name__}': {execution_time} seconds")
+        return result
+
+    return wrapper
 
 
 def shuffle_dataframe(dataframe_path):
@@ -50,6 +90,39 @@ def shuffle_dataframe(dataframe_path):
     shuffled_dataframe.to_csv(new_file_name, index=False)
 
     print(f"Shuffled DataFrame saved as {new_file_name}")
+
+
+def save_dataframe(dataframe: DataFrame, save_path: Path, dataframe_type: str = 'train',
+                   classification_mode: str = 'binary') -> None:
+    file_name = dataframe_type
+    if classification_mode == 'binary':
+        file_name = file_name + '_binary'
+    elif classification_mode == 'multi':
+        file_name = file_name + '_multi'
+    file_path = os.path.join(save_path, file_name + '.csv')
+    dataframe.to_csv(file_path, index=False)
+    print('SAVED:', file_path)
+
+
+def sort_columns(train_df: DataFrame, test_df: DataFrame, label_col_name: str) -> (DataFrame, DataFrame):
+    train_cols = train_df.columns
+    test_sortedBasedOnTrain = pd.DataFrame(columns=train_cols)
+    for col in test_sortedBasedOnTrain:
+        test_sortedBasedOnTrain[col] = test_df[col]
+
+    test_df = test_sortedBasedOnTrain
+
+    try:
+        train_df = train_df[[col for col in train_df.columns if col != label_col_name] + [label_col_name]]
+        test_df = test_df[[col for col in test_df.columns if col != label_col_name] + [label_col_name]]
+    except:
+        print('COULD NOT MOVE LABEL COL TO LAST COLUMN OF DATAFRAME')
+
+    return train_df, test_df
+
+
+def shuffle(dataframe: DataFrame):
+    return dataframe.sample(frac=1).reset_index(drop=True)
 
 
 class OptimizerFactory:
@@ -100,7 +173,34 @@ class OptimizerFactory:
                 return RMSprop(learning_rate=self.init_lr)
 
 
+class CustomEarlyStopping(Callback):
+    def __init__(self, monitor='val_acc', best_max_value=None):
+        super(CustomEarlyStopping, self).__init__()
+        self.monitor = monitor
+        self.stopped_epoch = int
+        self.best_weights = None
+        self.best_max_value = best_max_value
+        self.restore_best_weights = True
+
+    def on_epoch_end(self, epoch, logs=None):
+        current = logs.get(self.monitor)
+        if current is None:
+            print('CALLBACK DOES NOT WORK!')
+            return
+
+        self.stopped_epoch = epoch
+        if self.best_max_value is not None:
+            if current > self.best_max_value:
+                self.stopped_epoch = epoch
+                self.best_weights = self.model.get_weights()
+                self.model.stop_training = True
+                if self.restore_best_weights and self.best_weights is not None:
+                    print("Restoring best model weights.")
+                    self.model.set_weights(self.best_weights)
+
+
 if __name__ == "__main__":
     df_path = 'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\dataset\\' \
-              'KDD_CUP99\\train_binary_2neuron_labelOnehot.csv'
-    shuffle_dataframe(df_path)
+              'KDD_CUP99\\Train_standard.csv'
+    df = pd.read_csv(df_path)
+    shuffle_dataframe(df)
