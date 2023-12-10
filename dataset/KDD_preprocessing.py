@@ -8,7 +8,7 @@ import os
 from sklearn.preprocessing import StandardScaler, LabelBinarizer, MinMaxScaler
 from pathlib import Path
 
-from utils import parse_data
+from utils import parse_data, set_seed
 
 np.random.seed(0)
 random.seed(0)
@@ -197,7 +197,7 @@ class BuildDataFrames:
 
 
 if __name__ == "__main__":
-
+    set_seed(0)
     base_path = Path(__file__).resolve().parent.joinpath('KDD_CUP99')
     train_file_path = base_path.joinpath('original', 'kddcup.data_10_percent_corrected')
     test_file_path = base_path.joinpath('original', 'corrected.gz')

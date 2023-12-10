@@ -5,9 +5,7 @@ import numpy as np
 
 from sklearn.preprocessing import (MinMaxScaler, LabelBinarizer)
 from sklearn.model_selection import train_test_split
-from utils import parse_data, save_dataframe, sort_columns, shuffle_dataframe, set_seed
-
-set_seed(0)
+from utils import parse_data, save_dataframe, sort_columns, shuffle, set_seed
 
 
 class BuildDataFrames:
@@ -112,6 +110,7 @@ class BuildDataFrames:
 
 
 if __name__ == "__main__":
+    set_seed(0)
     base_path = Path(__file__).resolve().parent.joinpath('CICIDS')
     dataset_path = base_path.joinpath('original')
     classification_m = 'binary'
@@ -159,12 +158,15 @@ if __name__ == "__main__":
         test_tosave = preprocess_test.label_binarizing(label_binarizer=label_binarizer_object)
 
     # =========== COLUMNS ORDER EQUALIZATION FOR FURTHER PICTURE FORMATTING ===========
-    train_sorted, test_sorted = sort_columns(train_tosave, test_tosave)
+    train_sorted, test_sorted = sort_columns(train_tosave, test_tosave, ' Label')
     print(train_sorted[train_sorted.columns[-1]].value_counts())
     print(test_sorted[test_sorted.columns[-1]].value_counts())
 
+    # =========== SHUFFLE TRAINING SET ===========
+    train_tosave = shuffle(train_tosave)
+
     # =========== SAVE RESULTS ===========
-    save_dataframe(shuffle_dataframe(train_tosave), base_path, 'train', classification_m)
+    save_dataframe(train_tosave, base_path, 'train', classification_m)
     save_dataframe(test_tosave, base_path, 'test', classification_m)
 
     X, y = parse_data(train_tosave, dataset_name='CICIDS', classification_mode=classification_m)

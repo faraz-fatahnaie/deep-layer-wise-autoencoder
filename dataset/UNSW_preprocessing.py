@@ -4,6 +4,8 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from pathlib import Path
 
+from utils import set_seed
+
 
 class Preprocessor:
     def __init__(self, train_path, test_path, save_path, classification_m, label_col_name):
@@ -121,6 +123,7 @@ class Preprocessor:
 
 
 if __name__ == '__main__':
+    set_seed(0)
     base_path = Path(__file__).resolve().parent.joinpath('UNSW_NB15')
     train_path = base_path.joinpath('original', 'UNSW_NB15_training-set.csv')
     test_path = base_path.joinpath('original', 'UNSW_NB15_testing-set.csv')
