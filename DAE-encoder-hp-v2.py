@@ -273,8 +273,6 @@ def train_cf(X, y, params):
                     # activity_regularizer=tf.keras.regularizers.L2(1e-5)
                     ))
 
-
-
     model.compile(loss='categorical_crossentropy',
                   optimizer=Adam(params["learning_rate"]),
                   metrics=['acc'])
