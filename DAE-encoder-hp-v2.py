@@ -10,10 +10,10 @@ from hyperopt import STATUS_OK, SparkTrials, hp, Trials, fmin, tpe
 from keras import backend as K
 from keras import Input
 from keras.callbacks import EarlyStopping, ModelCheckpoint
-from keras.layers import Dense, LSTM, Bidirectional, Dropout, Flatten
+from keras.layers import Dense, LSTM, Bidirectional, Dropout, Flatten, Concatenate
 from keras.optimizers import Adam
 from sklearn import metrics
-from sklearn.metrics import confusion_matrix, balanced_accuracy_score, accuracy_score
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
 from tensorflow.python.client import device_lib
 import keras
 from keras.utils import to_categorical
@@ -25,50 +25,42 @@ import os
 from pathlib import Path
 from configs.setting import setting
 import json
-# from pyspark.sql import SparkSession
 import gc
 
-# # Initialize SparkSession
-# spark = SparkSession.builder \
-#     .appName("DAE-encoder-hp") \
-#     .config("spark.some.config.option", "5") \
-#     .getOrCreate()
-#
-# # Adjust logging level if needed
-# spark.sparkContext.setLogLevel("WARN")
-
-print(keras.__version__)
-
+# tf.compat.v1.disable_eager_execution()
 # os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 print(device_lib.list_local_devices())
 
-# tf.compat.v1.disable_eager_execution()
-
 config = dict()
-XGlobal = []
-YGlobal = []
+XGlobal = list()
+YGlobal = list()
 
-XTestGlobal = []
-YTestGlobal = []
+XTestGlobal = list()
+YTestGlobal = list()
 
-SavedParameters = []
-SavedParametersAE = []
-Mode = ""
-Name = ""
-SAVE_PATH_ = ""
-CHECKPOINT_PATH_ = ""
-best_val_acc = 0
+SavedParameters = list()
+SavedParametersAE = list()
+Mode = str()
+Name = str()
+SAVE_PATH_ = str()
+CHECKPOINT_PATH_ = str()
+
+tid = 0
 best_loss = float('inf')
+best_val_acc = 0
 best_ae = None
 
 
 def DAE(params_ae):
+    K.clear_session()
     print(params_ae)
     time_file = open(Path(SAVE_PATH_).joinpath('time.txt'), 'w')
     train_time = 0
 
     dataset_name = config['DATASET_NAME']
-    hidden_size = [params_ae['ae_unit'], params_ae['ae_unit'], params_ae['ae_unit']]
+    # h1, h2 = params_ae['ae_unit']
+    # hidden_size = [h1, h2, h1]
+    hidden_size = [params_ae['ae_unit'], params_ae['ae_unit'], params_ae['ae_unit'], params_ae['ae_unit']]
     activation = config['AE_ACTIVATION']
     loss_fn = config['AE_LOSS']
     ae_epoch = config['AE_EPOCH']
@@ -82,7 +74,11 @@ def DAE(params_ae):
     if os.path.isfile(ae_path) and not config['AE_TRAINABLE']:
         deep_autoencoder = keras.models.load_model(ae_path)
         print(f'DAE loaded from {ae_path}')
-        loss = deep_autoencoder.evaluate(X_train, X_train)
+        try:
+            loss = deep_autoencoder.evaluate(X_train, X_train)
+            print(loss)
+        except:
+            pass
     else:
         # ================= LAYER 1 =================
         autoencoder1, encoder1 = partial_ae_factory(in_shape=X_train.shape[1],
@@ -97,8 +93,11 @@ def DAE(params_ae):
         autoencoder3, encoder3 = partial_ae_factory(in_shape=hidden_size[1],
                                                     hidden_size=hidden_size[2],
                                                     activation=config['AE_ACTIVATION'])
+        # # ================= LAYER 4 =================
+        # autoencoder4, encoder4 = partial_ae_factory(in_shape=hidden_size[2],
+        #                                             hidden_size=hidden_size[3],
+        #                                             activation=config['AE_ACTIVATION'])
 
-        # PRETRAIN STEP: AutoEncoder Layer-wise Training
         opt_factory_ae = OptimizerFactory(opt=config['AE_OPTIMIZER'],
                                           lr_schedule=config['AE_SCHEDULE'],
                                           len_dataset=len(X_train),
@@ -110,14 +109,17 @@ def DAE(params_ae):
         sgd1 = opt_factory_ae.get_opt()
         sgd2 = opt_factory_ae.get_opt()
         sgd3 = opt_factory_ae.get_opt()
+        # sgd4 = opt_factory_ae.get_opt()
 
         autoencoder1.compile(loss=config['AE_LOSS'], optimizer=sgd1)
         autoencoder2.compile(loss=config['AE_LOSS'], optimizer=sgd2)
         autoencoder3.compile(loss=config['AE_LOSS'], optimizer=sgd3)
+        # autoencoder4.compile(loss=config['AE_LOSS'], optimizer=sgd4)
 
         encoder1.compile(loss=config['AE_LOSS'], optimizer=sgd1)
         encoder2.compile(loss=config['AE_LOSS'], optimizer=sgd2)
         encoder3.compile(loss=config['AE_LOSS'], optimizer=sgd3)
+        # encoder4.compile(loss=config['AE_LOSS'], optimizer=sgd4)
 
         early_stop1 = tf.keras.callbacks.EarlyStopping(
             monitor="loss",
@@ -143,12 +145,19 @@ def DAE(params_ae):
             restore_best_weights=True,
             start_from_epoch=0
         )
+        early_stop4 = tf.keras.callbacks.EarlyStopping(
+            monitor="loss",
+            min_delta=0.0001,
+            patience=10,
+            mode="auto",
+            restore_best_weights=True,
+            start_from_epoch=0
+        )
 
         print('========== LAYER 1 ==========')
         pae_train_start_time = time.time()
         autoencoder1.fit(X_train, X_train,
                          epochs=config['AE_EPOCH'], batch_size=params_ae['ae_batch'],
-                         # validation_split=0.20,
                          shuffle=False,
                          callbacks=[early_stop1],
                          verbose=2
@@ -158,7 +167,6 @@ def DAE(params_ae):
         first_layer_code = encoder1.predict(X_train, verbose=2)
         autoencoder2.fit(first_layer_code, first_layer_code,
                          epochs=config['AE_EPOCH'], batch_size=params_ae['ae_batch'],
-                         # validation_split=0.20,
                          shuffle=False,
                          callbacks=[early_stop2],
                          verbose=2
@@ -166,21 +174,29 @@ def DAE(params_ae):
 
         print('========== LAYER 3 ==========')
         second_layer_code = encoder2.predict(first_layer_code, verbose=2)
-        autoencoder3.fit(second_layer_code, second_layer_code,
-                         epochs=config['AE_EPOCH'], batch_size=params_ae['ae_batch'],
-                         # validation_split=0.20,
-                         shuffle=False,
-                         callbacks=[early_stop3],
-                         verbose=2
-                         )
+        history = autoencoder3.fit(second_layer_code, second_layer_code,
+                                   epochs=config['AE_EPOCH'], batch_size=params_ae['ae_batch'],
+                                   shuffle=False,
+                                   callbacks=[early_stop3],
+                                   verbose=2
+                                   )
+
+        # print('========== LAYER 3 ==========')
+        # third_layer_code = encoder3.predict(second_layer_code, verbose=2)
+        # history = autoencoder4.fit(third_layer_code, third_layer_code,
+        #                            epochs=config['AE_EPOCH'], batch_size=params_ae['ae_batch'],
+        #                            shuffle=False,
+        #                            callbacks=[early_stop4],
+        #                            verbose=2
+        #                            )
         pae_train_end_time = time.time()
         pae_train_elapsed_time = int(pae_train_end_time - pae_train_start_time)
 
-        # Setting the Weights of the Deep Autoencoder which has Learned in Layer-wise Training
         input_img = Input(shape=(X_train.shape[1],))
         encoded1_da = Dense(hidden_size[0], activation=config['AE_ACTIVATION'], name='encode1')(input_img)
         encoded2_da = Dense(hidden_size[1], activation=config['AE_ACTIVATION'], name='encode2')(encoded1_da)
         encoded3_da = Dense(hidden_size[2], activation=config['AE_ACTIVATION'], name='encode3')(encoded2_da)
+        # encoded4_da = Dense(hidden_size[3], activation=config['AE_ACTIVATION'], name='encode4')(encoded3_da)
         decoded1_da = Dense(X_train.shape[1], activation=config['AE_ACTIVATION'], name='out')(encoded3_da)
 
         deep_autoencoder = Model(inputs=input_img, outputs=decoded1_da)
@@ -188,6 +204,7 @@ def DAE(params_ae):
         deep_autoencoder.get_layer('encode1').set_weights(autoencoder1.layers[1].get_weights())
         deep_autoencoder.get_layer('encode2').set_weights(autoencoder2.layers[1].get_weights())
         deep_autoencoder.get_layer('encode3').set_weights(autoencoder3.layers[1].get_weights())
+        # deep_autoencoder.get_layer('encode4').set_weights(autoencoder4.layers[1].get_weights())
 
         sgd4 = opt_factory_ae.get_opt()
         deep_autoencoder.compile(loss=config['AE_LOSS'], optimizer=sgd4)
@@ -202,16 +219,16 @@ def DAE(params_ae):
         )
 
         print('========== LAYER 4 ==========')
-        lastlayer_pae_start_time = time.time()
+        outLayer_pae_start_time = time.time()
         history = deep_autoencoder.fit(X_train, X_train,
                                        epochs=config['AE_EPOCH'], batch_size=params_ae['ae_batch'],
-                                       # validation_split=0.20,
                                        shuffle=False,
                                        callbacks=[early_stop4],
                                        verbose=2
                                        )
-        lastlayer_pae_end_time = time.time()
-        train_time = int(pae_train_elapsed_time + (lastlayer_pae_end_time - lastlayer_pae_start_time))
+        outLayer_pae_elapsed_time = time.time() - outLayer_pae_start_time
+
+        train_time = int(pae_train_elapsed_time + outLayer_pae_elapsed_time)
         time_file.write(f'Autoencoder training (sec): {train_time}\n')
 
         loss = history.history['loss'][-1]
@@ -225,13 +242,16 @@ def DAE(params_ae):
                               }
 
 
-def train_cf(X, y, params=None):
+def train_cf(X, y, params):
+    global tid
+    tid += 1
+    K.clear_session()
     print(params)
     x_train, x_val, y_train, y_val = train_test_split(X,
                                                       y,
                                                       test_size=0.1,
                                                       stratify=y,
-                                                      random_state=0
+                                                      random_state=config['SEED']
                                                       )
     x_train = np.array(x_train)
     x_val = np.array(x_val)
@@ -241,7 +261,8 @@ def train_cf(X, y, params=None):
 
     forward_layer = LSTM(units=params['unit'], return_sequences=True)
     backward_layer = LSTM(units=params['unit'], return_sequences=True, go_backwards=True)
-    model.add(Bidirectional(forward_layer, backward_layer=backward_layer, merge_mode='concat'))
+    model.add(Bidirectional(forward_layer, backward_layer=backward_layer, merge_mode=params['merge_mode']))
+
     model.add(Dropout(params['dropout']))
 
     model.add(Flatten())
@@ -251,6 +272,8 @@ def train_cf(X, y, params=None):
                     # bias_regularizer=tf.keras.regularizers.L2(1e-4),
                     # activity_regularizer=tf.keras.regularizers.L2(1e-5)
                     ))
+
+
 
     model.compile(loss='categorical_crossentropy',
                   optimizer=Adam(params["learning_rate"]),
@@ -272,11 +295,10 @@ def train_cf(X, y, params=None):
         best_acc_value = 0.9
     elif config['DATASET_NAME'] == 'CICIDS':
         best_acc_value = 0.98
-
     early_stopping2 = CustomEarlyStopping(best_max_value=best_acc_value)
 
     train_start_time = time.time()
-    history = model.fit(
+    model.fit(
         x_train,
         y_train,
         epochs=config['EPOCHS'],
@@ -287,28 +309,28 @@ def train_cf(X, y, params=None):
         callbacks=[early_stopping1, early_stopping2, model_checkpoint]
     )
     train_end_time = time.time()
-    model.load_weights(os.path.join(CHECKPOINT_PATH_, 'best_model.h5'))
 
+    model.load_weights(os.path.join(CHECKPOINT_PATH_, 'best_model.h5'))
     Y_predicted = model.predict(x_val, workers=4, verbose=2)
 
     y_val = np.argmax(y_val, axis=1)
     Y_predicted = np.argmax(Y_predicted, axis=1)
 
     cf = confusion_matrix(y_val, Y_predicted)
-    bas = balanced_accuracy_score(y_val, Y_predicted) * 100
-    acc = metrics.accuracy_score(y_val, Y_predicted)
-    precision = metrics.precision_score(y_val, Y_predicted, average='binary')
-    recall = metrics.recall_score(y_val, Y_predicted, average='binary')
-    f1 = metrics.f1_score(y_val, Y_predicted, average='binary')
+    acc = accuracy_score(y_val, Y_predicted)
+    precision = precision_score(y_val, Y_predicted, average='binary')
+    recall = recall_score(y_val, Y_predicted, average='binary')
+    f1 = f1_score(y_val, Y_predicted, average='binary')
     epochs = early_stopping2.stopped_epoch + 1
 
     del X, y, x_train, x_val, y_train, y_val, Y_predicted
 
     return model, {
+        "tid": tid,
         "epochs": epochs,
         "train_time": int(train_end_time - train_start_time),
         "unit": params["unit"],
-        # "merge_mode": params['merge_mode'],
+        "merge_mode": params['merge_mode'],
         "learning_rate": params["learning_rate"],
         "batch": params["batch"],
         "dropout": params["dropout"],
@@ -328,12 +350,10 @@ def hyperopt_cf(params):
     global best_val_acc
     global best_ae
 
-    print("start train")
-    train_start_time = time.time()
+    print("start training")
     model, val = train_cf(XGlobal, YGlobal, params)
-    train_elapsed_time = time.time() - train_start_time
 
-    print("start predict")
+    print("start predicting")
     test_start_time = time.time()
     y_predicted = model.predict(XTestGlobal, workers=4, verbose=2)
     test_elapsed_time = time.time() - test_start_time
@@ -360,7 +380,7 @@ def hyperopt_cf(params):
 
     # Save model
     if SavedParameters[-1]["F1_val"] > best_val_acc:
-        print("new saved model:" + str(SavedParameters[-1]))
+        print("new model saved:" + str(SavedParameters[-1]))
         model.save(os.path.join(SAVE_PATH_, Name.replace(".csv", "_model.h5")))
         del model
         best_val_acc = SavedParameters[-1]["F1_val"]
@@ -471,42 +491,37 @@ def train_DAE():
     print(XGlobal.shape, YGlobal.shape, XTestGlobal.shape, YTestGlobal.shape)
 
     ae_hyperparameters_to_optimize = {
+        # "ae_unit": [(m, n, v) for m in [32, 64, 128] for n in [32, 64, 128] for v in [32, 64, 128] if m >= n >= v],
+        # "ae_unit": [(m, n) for m in [32, 64, 128] for n in [32, 64, 128] if m >= n],
         "ae_unit": [32, 64, 128],
         "ae_batch": [32, 64, 128]}
     keys = list(ae_hyperparameters_to_optimize.keys())
     values = list(ae_hyperparameters_to_optimize.values())
     for combination in product(*values):
-        # Create a dictionary with the current combination
         params_ae = {keys[i]: combination[i] for i in range(len(keys))}
         hyperopt_ae(params_ae)
 
-    # trials = Trials()
-    # spark_trials = SparkTrials()
-    # fmin(hyperopt_ae_fcn, ae_hyperparameters_to_optimize, trials=trials, algo=tpe.suggest, max_evals=15)
-
-    # XGlobal, _, YGlobal, _ = train_test_split(XGlobal, YGlobal,
-    #                                           test_size=0.5,
-    #                                           stratify=YGlobal,
-    #                                           random_state=config['SEED']
-    #                                           )
+    # best_ae = keras.models.load_model('C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\'
+    #                                   'trained_ae_temp2\\AE_UNSW_NB15_32_32_32_tanh_mae_E150_B32.keras')
 
     XGlobal = best_ae.predict(XGlobal, verbose=2)
     XTestGlobal = best_ae.predict(XTestGlobal, verbose=2)
     XGlobal = np.reshape(XGlobal, (-1, 1, XGlobal.shape[1]))
     XTestGlobal = np.reshape(XTestGlobal, (-1, 1, XTestGlobal.shape[1]))
     print(np.shape(XGlobal), np.shape(YGlobal), np.shape(XTestGlobal), np.shape(YTestGlobal))
+    K.clear_session()
 
-    cf_hyperparameters_to_optimize = {
+    cf_hyperparameters = {
         "unit": hp.choice("unit", [16, 32, 64]),
-        # "merge_mode": hp.choice("merge_mode", ['concat', 'sum', 'mul']),
+        "merge_mode": hp.choice("merge_mode", ['concat', 'sum', 'mul']),
         "batch": hp.choice("batch", [32, 64, 128]),
-        'dropout': hp.uniform("dropout1", 0, 0.8),
+        'dropout': hp.uniform("dropout", 0, 0.8),
         "learning_rate": hp.uniform("learning_rate", 0.00001, 0.0001)
     }
 
     trials = Trials()
     # spark_trials = SparkTrials()
-    fmin(hyperopt_cf, cf_hyperparameters_to_optimize, trials=trials, algo=tpe.suggest, max_evals=50)
+    fmin(hyperopt_cf, cf_hyperparameters, trials=trials, algo=tpe.suggest, max_evals=30)
     print('done')
 
 

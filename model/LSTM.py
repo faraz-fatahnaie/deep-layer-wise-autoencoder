@@ -1,7 +1,7 @@
 import keras.layers
 import tensorflow as tf
 from keras.layers import Input, Conv1D, MaxPooling1D, LSTM, Bidirectional, Dropout, Dense, Flatten, Reshape, Activation, \
-    Embedding, Add, Conv2D, MaxPooling2D, ConvLSTM2D, GRU, concatenate
+    Embedding, Add, Conv2D, MaxPooling2D, ConvLSTM2D, GRU, concatenate, Concatenate
 from keras.models import Model, Sequential
 import numpy as np
 
@@ -73,36 +73,40 @@ class BiLstm(Model):
         else:
             self.activation = 'softmax'
 
+        # model_input = Input(shape=(1, x_train.shape[2]))
+        # forward_layer = LSTM(units=params['s_unit'], return_sequences=True)
+        # backward_layer = LSTM(units=params['s_unit'], return_sequences=True, go_backwards=True)
+        # x_s = Bidirectional(forward_layer, backward_layer=backward_layer, merge_mode='sum')(model_input)
+        # x_s = Dropout(params['s_dropout'])(x_s)
+        # x_s = Flatten()(x_s)
+        #
+        # forward_layer = LSTM(units=params['m_unit'], return_sequences=True)
+        # backward_layer = LSTM(units=params['m_unit'], return_sequences=True, go_backwards=True)
+        # x_m = Bidirectional(forward_layer, backward_layer=backward_layer, merge_mode='mul')(model_input)
+        # x_m = Dropout(params['m_dropout'])(x_m)
+        # x_m = Flatten()(x_m)
+        #
+        # forward_layer = LSTM(units=params['c_unit'], return_sequences=True)
+        # backward_layer = LSTM(units=params['c_unit'], return_sequences=True, go_backwards=True)
+        # x_c = Bidirectional(forward_layer, backward_layer=backward_layer, merge_mode='concat')(model_input)
+        # x_c = Dropout(params['c_dropout'])(x_c)
+        # x_c = Flatten()(x_c)
+        #
+        # x = keras.layers.Concatenate()([x_c, x_s, x_m])
+        # output = Dense(y_train.shape[1],
+        #                activation="softmax"
+        #                )(x)
+        #
+        # model = tf.keras.Model(inputs=model_input, outputs=output)
+
         model_input = Input(shape=self.in_shape)
 
         forward_layer = LSTM(units=128, return_sequences=True)
         backward_layer = LSTM(units=128, return_sequences=True, go_backwards=True)
-        x = Bidirectional(forward_layer, backward_layer=backward_layer, merge_mode='concat')(model_input)
-        x = Dropout(0.42415005)(x)
+        x_concat = Bidirectional(forward_layer, backward_layer=backward_layer, merge_mode='concat')(model_input)
+        x = Dropout(0.5)(x_concat)
         x = Flatten()(x)
 
-        # forward_layer = LSTM(units=32, return_sequences=True)
-        # backward_layer = LSTM(units=32, return_sequences=True, go_backwards=True)
-        # x_s = Bidirectional(forward_layer, backward_layer=backward_layer, merge_mode='sum')(model_input)
-        # x_s = Dropout(0.2)(x_s)
-        # x_s = Flatten()(x_s)
-        #
-        # forward_layer = LSTM(units=32, return_sequences=True)
-        # backward_layer = LSTM(units=32, return_sequences=True, go_backwards=True)
-        # x_m = Bidirectional(forward_layer, backward_layer=backward_layer, merge_mode='mul')(model_input)
-        # x_m = Dropout(0.2)(x_m)
-        # x_m = Flatten()(x_m)
-        #
-        # forward_layer = LSTM(units=32, return_sequences=True)
-        # backward_layer = LSTM(units=32, return_sequences=True, go_backwards=True)
-        # x_a = Bidirectional(forward_layer, backward_layer=backward_layer, merge_mode='ave')(model_input)
-        # x_a = Dropout(0.2)(x_a)
-        # x_a = Flatten()(x_a)
-        #
-        # x = keras.layers.Concatenate()([x_c, x_s, x_m, x_a])
-
-        # x = Flatten()(x)
-        # x = Dense(128, activation='relu')(x)
         output = Dense(self.out_shape,
                        activation="softmax",
                        # kernel_regularizer=tf.keras.regularizers.L1L2(l1=1e-5, l2=1e-4),
@@ -113,7 +117,7 @@ class BiLstm(Model):
         self.model = tf.keras.Model(inputs=model_input, outputs=output)
 
         # self.initialize()
-        # self.model.summary()
+        self.model.summary()
 
     def call(self, inputs):
         return self.model(inputs)
