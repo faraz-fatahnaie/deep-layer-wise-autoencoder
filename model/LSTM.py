@@ -1,65 +1,7 @@
-import keras.layers
 import tensorflow as tf
-from keras.layers import Input, Conv1D, MaxPooling1D, LSTM, Bidirectional, Dropout, Dense, Flatten, Reshape, Activation, \
+from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, LSTM, Bidirectional, Dropout, Dense, Flatten, Reshape, Activation, \
     Embedding, Add, Conv2D, MaxPooling2D, ConvLSTM2D, GRU, concatenate, Concatenate
-from keras.models import Model, Sequential
-import numpy as np
-
-
-class CnnLstm(Model):
-    def __init__(self, in_shape: tuple = (118, 1), out_shape: int = 2):
-        super(CnnLstm, self).__init__()
-
-        self.in_shape = in_shape
-        self.out_shape = out_shape
-
-        self.model = Sequential()
-
-        self.model.add(Conv1D(8, 32, activation='relu', input_shape=self.in_shape))
-        # self.model.add(MaxPooling1D(2))
-
-        self.model.add(Conv1D(16, 16, activation='relu'))
-        # self.model.add(MaxPooling1D(2))
-
-        self.model.add(Conv1D(32, 8, activation='relu'))
-        # self.model.add(MaxPooling1D(2))
-
-        self.model.add(Conv1D(64, 4, activation='relu'))
-        # self.model.add(MaxPooling1D(2))
-
-        self.model.add(Reshape((1, -1)))
-
-        self.model.add(LSTM(50, activation='tanh', return_sequences=True))
-        # self.model.add(Dropout(0.1))
-
-        self.model.add(LSTM(25, activation='tanh'))
-        # self.model.add(Dropout(0.1))
-
-        self.model.add(Flatten())
-
-        # self.model.add(Dense(128, activation='relu'))
-        self.model.add(Dense(self.out_shape,
-                             activation='softmax',
-                             kernel_regularizer=tf.keras.regularizers.L1L2(l1=1e-5, l2=1e-4),
-                             bias_regularizer=tf.keras.regularizers.L2(1e-4),
-                             activity_regularizer=tf.keras.regularizers.L2(1e-5)
-                             ))
-
-        self.initialize()
-        # self.model.summary()
-
-    def call(self, inputs):
-        return self.model(inputs)
-
-    def initialize(self):
-        for layer in self.model.layers:
-            if isinstance(layer, (Conv1D, Dense)):
-                layer.kernel_initializer = tf.keras.initializers.GlorotNormal()
-                layer.bias_initializer = tf.keras.initializers.Zeros()
-
-    def build_graph(self):
-        x = tf.keras.Input(shape=self.in_shape)
-        return tf.keras.Model(inputs=[x], outputs=self.call(x))
+from tensorflow.keras.models import Model, Sequential
 
 
 class BiLstm(Model):
@@ -125,6 +67,62 @@ class BiLstm(Model):
     def initialize(self):
         for layer in self.model.layers:
             if isinstance(layer, Dense):
+                layer.kernel_initializer = tf.keras.initializers.GlorotNormal()
+                layer.bias_initializer = tf.keras.initializers.Zeros()
+
+    def build_graph(self):
+        x = tf.keras.Input(shape=self.in_shape)
+        return tf.keras.Model(inputs=[x], outputs=self.call(x))
+
+
+class CnnLstm(Model):
+    def __init__(self, in_shape: tuple = (118, 1), out_shape: int = 2):
+        super(CnnLstm, self).__init__()
+
+        self.in_shape = in_shape
+        self.out_shape = out_shape
+
+        self.model = Sequential()
+
+        self.model.add(Conv1D(8, 32, activation='relu', input_shape=self.in_shape))
+        # self.model.add(MaxPooling1D(2))
+
+        self.model.add(Conv1D(16, 16, activation='relu'))
+        # self.model.add(MaxPooling1D(2))
+
+        self.model.add(Conv1D(32, 8, activation='relu'))
+        # self.model.add(MaxPooling1D(2))
+
+        self.model.add(Conv1D(64, 4, activation='relu'))
+        # self.model.add(MaxPooling1D(2))
+
+        self.model.add(Reshape((1, -1)))
+
+        self.model.add(LSTM(50, activation='tanh', return_sequences=True))
+        # self.model.add(Dropout(0.1))
+
+        self.model.add(LSTM(25, activation='tanh'))
+        # self.model.add(Dropout(0.1))
+
+        self.model.add(Flatten())
+
+        # self.model.add(Dense(128, activation='relu'))
+        self.model.add(Dense(self.out_shape,
+                             activation='softmax',
+                             kernel_regularizer=tf.keras.regularizers.L1L2(l1=1e-5, l2=1e-4),
+                             bias_regularizer=tf.keras.regularizers.L2(1e-4),
+                             activity_regularizer=tf.keras.regularizers.L2(1e-5)
+                             ))
+
+        self.initialize()
+        # self.model.summary()
+
+    def call(self, inputs):
+        return self.model(inputs)
+
+    def initialize(self):
+        for layer in self.model.layers:
+            if isinstance(layer, (Conv1D, Dense)):
                 layer.kernel_initializer = tf.keras.initializers.GlorotNormal()
                 layer.bias_initializer = tf.keras.initializers.Zeros()
 
