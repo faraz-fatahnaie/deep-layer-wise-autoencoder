@@ -6,11 +6,11 @@ from itertools import product
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import tensorflow.python.keras
 from hyperopt import STATUS_OK, SparkTrials, hp, Trials, fmin, tpe
 from tensorflow import expand_dims
-from keras import backend as K
-from keras import Input
-from keras.callbacks import EarlyStopping, ModelCheckpoint
+
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.layers import Dense, LSTM, Bidirectional, Dropout, Flatten, Concatenate
 from tensorflow.keras.optimizers import Adam
 from sklearn import metrics
@@ -74,7 +74,7 @@ best_params = dict()
 
 def DAE(params_ae, method: str = 'layer-wise'):
 
-    K.clear_session()
+    tf.keras.backend.clear_session()
     print(params_ae)
 
     time_file = open(Path(SAVE_PATH_).joinpath('time.txt'), 'w')
@@ -204,7 +204,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
             pae_train_end_time = time.time()
             pae_train_elapsed_time = int(pae_train_end_time - pae_train_start_time)
 
-            input_img = Input(shape=(X_train.shape[1],))
+            input_img = tensorflow.keras.Input(shape=(X_train.shape[1],))
             encoded1_da = Dense(hidden_size[0], activation=params_ae['ae_activation'], name='encode1')(input_img)
             encoded2_da = Dense(hidden_size[1], activation=params_ae['ae_activation'], name='encode2')(encoded1_da)
             encoded3_da = Dense(hidden_size[2], activation=params_ae['ae_activation'], name='encode3')(encoded2_da)
@@ -258,7 +258,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
 
         else:
 
-            input_img = Input(shape=(X_train.shape[1],))
+            input_img = tensorflow.keras.Input(shape=(X_train.shape[1],))
             encoded1_da = Dense(hidden_size[0], activation=params_ae['ae_activation'], name='encode1',
                                 kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
                                 bias_initializer=tf.keras.initializers.Zeros()
@@ -335,7 +335,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
     global best_ae
 
     tid += 1
-    K.clear_session()
+    tf.keras.backend.clear_session()
     print(params)
     x_train = np.array(x_train)
     x_val = np.array(x_val)
@@ -347,7 +347,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
 
     if config['MODEL_NAME'] == 'BILSTM':
         cf = tf.keras.models.Sequential()
-        cf.add(Input(shape=(1, n_features)))
+        cf.add(tensorflow.keras.Input(shape=(1, n_features)))
 
         forward_layer = LSTM(units=params['unit'], return_sequences=True,
                              kernel_initializer='glorot_uniform', bias_initializer='zeros')
@@ -367,7 +367,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
 
     elif config['MODEL_NAME'] == 'LSTM':
         cf = tf.keras.models.Sequential()
-        cf.add(Input(shape=(1, n_features)))
+        cf.add(tensorflow.keras.Input(shape=(1, n_features)))
 
         cf.add(LSTM(params['unit'], return_sequences=True))
 
@@ -481,7 +481,7 @@ def hyperopt_cf(params):
     YTestGlobal_temp = np.argmax(YTestGlobal, axis=1)
     cm = confusion_matrix(YTestGlobal_temp, y_predicted)
 
-    K.clear_session()
+    tf.keras.backend.clear_session()
 
     SavedParameters.append(val)
 
@@ -549,7 +549,7 @@ def hyperopt_ae(params_ae, method):
     # return {'loss': val["loss"], 'status': STATUS_OK}
 
 
-def train_DAE():
+def train_DAE(dataset_name):
     global YGlobal
     global YValGlobal
     global YTestGlobal
@@ -566,12 +566,15 @@ def train_DAE():
     i = 1
     flag = True
     project = 'DAE'
-    TRAINED_MODEL_PATH_ = ''
     config = {}
     BASE_DIR = Path(__file__).resolve().parent
     while flag:
 
-        config, config_file = setting_DAE(project=project)
+        config_name = f'CONFIG_{dataset_name}'
+        config_dir = BASE_DIR.joinpath('configs')
+        config_file = open(f'{config_dir}/{config_name}.json')
+        config_file = json.load(config_file)
+        config = setting_DAE(config_file=config_file, project=project)
         TEMP_FILENAME = f"{config['DATASET_NAME']}-{config['CLASSIFICATION_MODE']}-{config['MODEL_NAME']}-{i}"
         TEMP_PATH = BASE_DIR.joinpath(f"session_{project}/{TEMP_FILENAME}")
 
@@ -638,10 +641,10 @@ def train_DAE():
     #     print("Data moved to GPU.")
 
     ae_hyperparameters_to_optimize = {
-        "ae_activation": ['tanh', 'relu', 'sigmoid'],
-        "ae_out_activation": ['relu', 'linear', 'sigmoid'],
-        "ae_loss": ['mse', 'mae'],
-        "ae_optimizer": ['adam', 'sgd']
+        "ae_activation": config['AE_ACTIVATION'],
+        "ae_out_activation": config['AE_O_ACTIVATION'],
+        "ae_loss": config['AE_LOSS'],
+        "ae_optimizer": config['AE_OPTIMIZER']
     }
     keys = list(ae_hyperparameters_to_optimize.keys())
     values = list(ae_hyperparameters_to_optimize.values())
@@ -668,7 +671,7 @@ def train_DAE():
     print('train set:', XGlobal.shape, YGlobal.shape)
     print('validation set:', XValGlobal.shape, YValGlobal.shape)
     print('test set:', XTestGlobal.shape, YTestGlobal.shape)
-    K.clear_session()
+    tf.keras.backend.clear_session()
 
     cf_hyperparameters = {
         "unit": hp.choice("unit", config['UNIT']),
@@ -678,7 +681,7 @@ def train_DAE():
         "learning_rate": hp.uniform("learning_rate", config['MIN_LR'], config['MAX_LR'])
     }
     if config['MODEL_NAME'] == 'BILSTM':
-        cf_hyperparameters['merge_mode'] = hp.choice("merge_mode", ['concat', 'sum', 'mul'])
+        cf_hyperparameters['merge_mode'] = hp.choice("merge_mode", config['MERGE_MODE'])
 
     trials = Trials()
     # spark_trials = SparkTrials()
@@ -691,8 +694,9 @@ def train_DAE():
 
 
 if __name__ == '__main__':
-    # parser = argparse.ArgumentParser(description='Description of your script')
-    # parser.add_argument('--dataset', type=str, default='UNSW_NB15', help='dataset name')
-    #
-    # args = parser.parse_args()
-    train_DAE()
+    parser = argparse.ArgumentParser(description='Description of your script')
+    parser.add_argument('--dataset', type=str, default='UNSW_NB15',
+                        help='dataset name choose from: "UNSW", "KDD", "CICIDS"')
+
+    args = parser.parse_args()
+    train_DAE(args.dataset)
