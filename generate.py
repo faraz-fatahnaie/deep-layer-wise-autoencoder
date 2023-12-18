@@ -1,20 +1,12 @@
-import math
 from pathlib import Path
 
 from keras.models import load_model
 import numpy as np
-import pickle
-import pandas as pd
 import tensorflow as tf
-import matplotlib
-from matplotlib import pyplot as plt
-from tensorflow.compat.v1 import InteractiveSession
+from tensorflow.python.client.session import InteractiveSession
 
-from Dataset2Image.main import deepinsight
 from configs.setting import setting
-from utils import parse_data
 
-# matplotlib.use('TkAgg')
 
 config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU
