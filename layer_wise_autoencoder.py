@@ -1,25 +1,25 @@
-from keras.layers import Input, Dense, BatchNormalization, Dropout, LSTM
-from keras.models import Model, Sequential
 import tensorflow as tf
 
 
 def ae_factory(in_shape, hidden_size, activation):
-    autoencoder = Sequential()
-    autoencoder.add(Input(shape=(in_shape,)))
+    autoencoder = tf.keras.models.Sequential()
+    autoencoder.add(tf.keras.layers.Input(shape=(in_shape,)))
     for size in hidden_size:
-        autoencoder.add(Dense(size, activation=activation))
+        autoencoder.add(tf.keras.layers.Dense(size, activation=activation))
     return autoencoder
 
 
 def partial_ae_factory(in_shape, hidden_size, activation):
-    input_img = Input(shape=(in_shape,))
-    encoded = Dense(hidden_size, activation=activation,
-                    kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0))(input_img)
-    decoded = Dense(in_shape, activation=activation,
-                    kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0))(encoded)
+    input_img = tf.keras.layers.Input(shape=(in_shape,))
+    encoded = tf.keras.layers.Dense(hidden_size, activation=activation,
+                                    kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+                                    bias_initializer=tf.keras.initializers.Zeros())(input_img)
+    decoded = tf.keras.layers.Dense(in_shape, activation=activation,
+                                    kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+                                    bias_initializer=tf.keras.initializers.Zeros())(encoded)
 
-    autoencoder = Model(inputs=input_img, outputs=decoded)
-    encoder = Model(inputs=input_img, outputs=encoded)
+    autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decoded)
+    encoder = tf.keras.models.Model(inputs=input_img, outputs=encoded)
 
     return autoencoder, encoder
 
@@ -42,21 +42,6 @@ def partial_ae_factory(in_shape, hidden_size, activation):
 #
 #     autoencoder.add(Dense(in_shape, activation=activation))
 #     return autoencoder
-#
-#
-# def partial_ae_factory(in_shape, hidden_size, activation):
-#     input_img = Input(shape=(in_shape,))
-#     distorted_input = Dropout(0)(input_img)
-#     encoded = Dense(hidden_size, activation=activation,
-#                     kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0))(distorted_input)
-#     encoded_bn = BatchNormalization()(encoded)
-#     decoded = Dense(in_shape, activation=activation,
-#                     kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0))(encoded_bn)
-#
-#     autoencoder = Model(inputs=input_img, outputs=decoded)
-#     encoder = Model(inputs=input_img, outputs=encoded_bn)
-#
-#     return autoencoder, encoder
 
 
 if __name__ == "__main__":
