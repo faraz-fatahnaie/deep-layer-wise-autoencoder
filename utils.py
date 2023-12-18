@@ -163,8 +163,8 @@ class OptimizerFactory:
             if self.lr_schedule:
                 return SGD(self.lr_scheduler())
             else:
-                return SGD(learning_rate=5, decay=0.5, momentum=.85, nesterov=True)
-                # return SGD(learning_rate=.1, decay=0.001, momentum=.95, nesterov=True)
+                # return SGD(learning_rate=5, decay=0.5, momentum=.85, nesterov=True)
+                return SGD(learning_rate=0.1, decay=0.1, momentum=.95, nesterov=True)
 
         elif self.opt == 'rmsprop':
             if self.lr_schedule:
@@ -174,7 +174,7 @@ class OptimizerFactory:
 
 
 class CustomEarlyStopping(Callback):
-    def __init__(self, monitor='val_acc', best_max_value=None):
+    def __init__(self, monitor='acc', best_max_value=None):
         super(CustomEarlyStopping, self).__init__()
         self.monitor = monitor
         self.stopped_epoch = int
