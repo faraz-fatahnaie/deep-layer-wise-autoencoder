@@ -1,0 +1,43 @@
+{
+  "seed": 0,
+  "dataset": {
+    "name": "UNSW_NB15",
+    "classification_mode": "binary",
+    "val_size": 0.05,
+    "n_worker": 4
+  },
+  "autoencoder": {
+    "trainable": false,
+    "fine_tuning": false,
+    "ae_method": "layer-wise",
+    "ae_unit": [32, 64, 128],
+    "pretrain_epoch": 150,
+    "ae_batch": [32, 64, 128],
+    "loss_fn": "mse",
+    "activation": "tanh",
+    "o_activation": "relu",
+    "optimizer": "sgd",
+    "lr_schedule": true,
+    "initial_lr": 0.1,
+    "finial_lr": 0.0001,
+    "decay": 0.5
+  },
+  "classifier": {
+    "name": "BILSTM",
+    "unit": [16, 32, 64],
+    "min_dropout": 0,
+    "max_dropout": 0.8,
+    "batch": [32, 64, 128],
+    "min_lr": 0.00001,
+    "max_lr": 0.0001,
+    "epoch": 150,
+    "loss_fn": "cce",
+    "monitor": "val_loss",
+    "early_stop": {
+      "use": true,
+      "min_delta": 0.0001,
+      "patience": 10
+    },
+    "max_evals": 50
+  }
+}
