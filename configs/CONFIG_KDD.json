@@ -1,0 +1,44 @@
+{
+  "seed": 0,
+  "dataset": {
+    "name": "KDD_CUP99",
+    "classification_mode": "binary",
+    "val_size": 0.05,
+    "n_worker": 4
+  },
+  "autoencoder": {
+    "trainable": false,
+    "fine_tuning": false,
+    "ae_method": "layer-wise",
+    "ae_unit": 128,
+    "pretrain_epoch": 150,
+    "ae_batch": 32,
+    "loss_fn": ["mse", "mae"],
+    "activation": ["tanh", "relu", "sigmoid"],
+    "o_activation": ["relu", "linear", "sigmoid"],
+    "optimizer": ["sgd"],
+    "lr_schedule": true,
+    "initial_lr": 0.1,
+    "finial_lr": 0.0001,
+    "decay": 0.5
+  },
+  "classifier": {
+    "name": "BILSTM",
+    "unit": [16, 32, 64],
+    "merge_mode": ["concat", "sum", "mul"],
+    "min_dropout": 0,
+    "max_dropout": 0.8,
+    "batch": [32, 64, 128],
+    "min_lr": 0.00001,
+    "max_lr": 0.0001,
+    "epoch": 150,
+    "loss_fn": "cce",
+    "monitor": "val_loss",
+    "early_stop": {
+      "use": true,
+      "min_delta": 0.0001,
+      "patience": 10
+    },
+    "max_evals": 50
+  }
+}

@@ -8,12 +8,6 @@ def setting_DAE(config_file: json = None, project: str = 'DAE'):
     BASE_DIR.joinpath(f'session_{project}').mkdir(exist_ok=True)
     BASE_DIR.joinpath('trained_ae').mkdir(exist_ok=True)
 
-    if config_file is None:
-        config_name = 'CONFIG_DAE'  # config file name in config dir
-        config_dir = BASE_DIR.joinpath('configs')
-        config_file = open(f'{config_dir}/{config_name}.json')
-        config_file = json.load(config_file)
-
     config['SEED'] = config_file['seed']
 
     config['DATASET_NAME'] = config_file['dataset']['name']
@@ -39,6 +33,7 @@ def setting_DAE(config_file: json = None, project: str = 'DAE'):
 
     config['MODEL_NAME'] = config_file['classifier']['name']
     config['UNIT'] = config_file['classifier']['unit']
+    config['MERGE_MODE'] = config_file['classifier']['merge_mode']
     config['MIN_DROPOUT'] = config_file['classifier']['min_dropout']
     config['MAX_DROPOUT'] = config_file['classifier']['max_dropout']
     config['BATCH'] = config_file['classifier']['batch']
@@ -50,4 +45,4 @@ def setting_DAE(config_file: json = None, project: str = 'DAE'):
     config['EARLY_STOP'] = config_file['classifier']['early_stop']
     config['MAX_EVALS'] = config_file['classifier']['max_evals']
 
-    return config, config_file
+    return config
