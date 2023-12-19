@@ -73,7 +73,6 @@ best_params = dict()
 
 
 def DAE(params_ae, method: str = 'layer-wise'):
-
     tf.keras.backend.clear_session()
     print(params_ae)
 
@@ -349,27 +348,34 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         cf = tf.keras.models.Sequential()
         cf.add(tensorflow.keras.Input(shape=(1, n_features)))
 
-        forward_layer = LSTM(units=params['unit'], return_sequences=True,
-                             kernel_initializer='glorot_uniform', bias_initializer='zeros')
-        backward_layer = LSTM(units=params['unit'], return_sequences=True, go_backwards=True,
+        forward_layer1 = LSTM(units=params['unit1'], return_sequences=True,
                               kernel_initializer='glorot_uniform', bias_initializer='zeros')
-        cf.add(Bidirectional(forward_layer, backward_layer=backward_layer, merge_mode=params['merge_mode']))
+        backward_layer1 = LSTM(units=params['unit1'], return_sequences=True, go_backwards=True,
+                               kernel_initializer='glorot_uniform', bias_initializer='zeros')
+        cf.add(Bidirectional(forward_layer1, backward_layer=backward_layer1, merge_mode=params['merge_mode1']))
+
+        forward_layer2 = LSTM(units=params['unit2'], return_sequences=True,
+                              kernel_initializer='glorot_uniform', bias_initializer='zeros')
+        backward_layer2 = LSTM(units=params['unit2'], return_sequences=True, go_backwards=True,
+                               kernel_initializer='glorot_uniform', bias_initializer='zeros')
+        cf.add(Bidirectional(forward_layer2, backward_layer=backward_layer2, merge_mode=params['merge_mode2']))
 
         cf.add(Dropout(params['dropout']))
 
         cf.add(Flatten())
         cf.add(Dense(y_train.shape[1],
                      activation="softmax",
-                     kernel_regularizer=tf.keras.regularizers.L1L2(l1=1e-5, l2=1e-4),
-                     bias_regularizer=tf.keras.regularizers.L2(1e-4),
-                     activity_regularizer=tf.keras.regularizers.L2(1e-5)
+                     # kernel_regularizer=tf.keras.regularizers.L1L2(l1=1e-5, l2=1e-4),
+                     # bias_regularizer=tf.keras.regularizers.L2(1e-4),
+                     # activity_regularizer=tf.keras.regularizers.L2(1e-5)
                      ))
 
     elif config['MODEL_NAME'] == 'LSTM':
         cf = tf.keras.models.Sequential()
         cf.add(tensorflow.keras.Input(shape=(1, n_features)))
 
-        cf.add(LSTM(params['unit'], return_sequences=True))
+        cf.add(LSTM(params['unit1'], return_sequences=True))
+        cf.add(LSTM(params['unit2'], return_sequences=True))
 
         cf.add(Dropout(params['dropout']))
 
@@ -448,8 +454,10 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         "tid": tid,
         "epochs": epochs,
         "train_time": int(train_end_time - train_start_time),
-        "unit": params["unit"],
-        "merge_mode": params['merge_mode'],
+        "unit1": params["unit1"],
+        "unit2": params["unit2"],
+        "merge_mode1": params['merge_mode1'],
+        "merge_mode2": params['merge_mode2'],
         "learning_rate": params["learning_rate"],
         "batch": params["batch"],
         "dropout": params["dropout"],
@@ -674,14 +682,16 @@ def train_DAE(dataset_name):
     tf.keras.backend.clear_session()
 
     cf_hyperparameters = {
-        "unit": hp.choice("unit", config['UNIT']),
+        "unit1": hp.choice("unit1", config['UNIT']),
+        "unit2": hp.choice("unit2", config['UNIT']),
         "batch": hp.choice("batch", config['BATCH']),
         # "epoch": hp.choice("epoch", config['EPOCH']),
         'dropout': hp.uniform("dropout", config['MIN_DROPOUT'], config['MAX_DROPOUT']),
         "learning_rate": hp.uniform("learning_rate", config['MIN_LR'], config['MAX_LR'])
     }
     if config['MODEL_NAME'] == 'BILSTM':
-        cf_hyperparameters['merge_mode'] = hp.choice("merge_mode", config['MERGE_MODE'])
+        cf_hyperparameters['merge_mode2'] = hp.choice("merge_mode2", config['MERGE_MODE'])
+        cf_hyperparameters['merge_mode2'] = hp.choice("merge_mode2", config['MERGE_MODE'])
 
     trials = Trials()
     # spark_trials = SparkTrials()
