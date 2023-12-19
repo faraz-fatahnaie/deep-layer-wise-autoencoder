@@ -344,7 +344,7 @@ def hyperopt_ae(params_ae, method):
     gc.collect()
 
 
-def train_DAE():
+def train_DAE(dataset_name):
     global YGlobal
     global YTestGlobal
     global YValGlobal
@@ -365,7 +365,11 @@ def train_DAE():
     BASE_DIR = Path(__file__).resolve().parent
     while flag:
 
-        config, config_file = setting_DAE(project=project)
+        config_name = f'CONFIG_{dataset_name}'
+        config_dir = BASE_DIR.joinpath('configs')
+        config_file = open(f'{config_dir}/{config_name}.json')
+        config_file = json.load(config_file)
+        config = setting_DAE(config_file=config_file, project=project)
         TEMP_FILENAME = f"AE-{config['AE_METHOD']}-{config['DATASET_NAME']}-{i}"
         TEMP_PATH = BASE_DIR.joinpath(f"session_{project}/{TEMP_FILENAME}")
 
@@ -459,10 +463,9 @@ def train_DAE():
 
 
 if __name__ == '__main__':
-    # parser = argparse.ArgumentParser(description='Description of your script')
-    # parser.add_argument('--dataset', type=str, default='UNSW_NB15', help='dataset name')
-    #
-    # args = parser.parse_args()
-    # ae_train_method = 'formal'
-    # train_DAE(ae_train_method)
-    train_DAE()
+    parser = argparse.ArgumentParser(description='Description of your script')
+    parser.add_argument('--dataset', type=str, default='UNSW_NB15',
+                        help='dataset name choose from: "UNSW", "KDD", "CICIDS"')
+
+    args = parser.parse_args()
+    train_DAE(args.dataset)
