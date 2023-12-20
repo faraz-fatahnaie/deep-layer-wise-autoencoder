@@ -9,13 +9,13 @@
   "autoencoder": {
     "trainable": false,
     "fine_tuning": false,
-    "ae_method": "layer-wise",
+    "ae_method": "layer-wise-encoder",
     "ae_unit": 128,
     "pretrain_epoch": 150,
     "ae_batch": 32,
     "loss_fn": ["mse", "mae"],
     "activation": ["tanh", "relu", "sigmoid"],
-    "o_activation": ["relu", "linear", "sigmoid"],
+    "o_activation": ["relu", "sigmoid"],
     "optimizer": ["sgd"],
     "lr_schedule": true,
     "initial_lr": 0.1,
@@ -23,7 +23,7 @@
     "decay": 0.5
   },
   "classifier": {
-    "name": "BILSTM",
+    "name": "LSTM",
     "unit": [16, 32, 64],
     "merge_mode": ["concat", "sum", "mul"],
     "min_dropout": 0,
