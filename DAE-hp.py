@@ -282,14 +282,6 @@ def DAE(params_ae, method: str = 'layer-wise'):
             deep_autoencoder.get_layer('encode2').set_weights(autoencoder2.layers[1].get_weights())
             deep_autoencoder.get_layer('encode3').set_weights(autoencoder3.layers[1].get_weights())
 
-            if method == 'layer-wise-encoder':
-                decode_da = Dense(X_train.shape[1], activation=params_ae['ae_activation'], name='decode')(encoded3_da)
-                deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decode_da)
-                deep_autoencoder.get_layer('encode1').set_weights(autoencoder1.layers[1].get_weights())
-                deep_autoencoder.get_layer('encode2').set_weights(autoencoder2.layers[1].get_weights())
-                deep_autoencoder.get_layer('encode3').set_weights(autoencoder3.layers[1].get_weights())
-                deep_autoencoder.get_layer('decode').set_weights(autoencoder3.layers[2].get_weights())
-
             outLayer_pae_elapsed_time = 0
             if method == 'layer-wise':
                 decoded1_da = Dense(X_train.shape[1], activation=params_ae['ae_out_activation'], name='out',
@@ -301,6 +293,10 @@ def DAE(params_ae, method: str = 'layer-wise'):
                 deep_autoencoder.get_layer('encode1').set_weights(autoencoder1.layers[1].get_weights())
                 deep_autoencoder.get_layer('encode2').set_weights(autoencoder2.layers[1].get_weights())
                 deep_autoencoder.get_layer('encode3').set_weights(autoencoder3.layers[1].get_weights())
+
+                deep_autoencoder.get_layer('encode1').trainable = False
+                deep_autoencoder.get_layer('encode2').trainable = False
+                deep_autoencoder.get_layer('encode3').trainable = False
 
                 sgd4 = opt_factory_ae.get_opt()
                 deep_autoencoder.compile(loss=params_ae['ae_loss'], optimizer=sgd4)
@@ -324,10 +320,6 @@ def DAE(params_ae, method: str = 'layer-wise'):
                                                verbose=2
                                                )
                 outLayer_pae_elapsed_time = time.time() - outLayer_pae_start_time
-
-            # deep_autoencoder.get_layer('encode1').trainable = False
-            # deep_autoencoder.get_layer('encode2').trainable = False
-            # deep_autoencoder.get_layer('encode3').trainable = False
 
             train_time = int(pae_train_elapsed_time + outLayer_pae_elapsed_time)
             time_file.write(f'Autoencoder training (sec): {train_time}\n')
@@ -639,12 +631,9 @@ def train_DAE(dataset_name):
 
     # Generate synthetic data for testing (replace with your dataset)
     dataset_name = config['DATASET_NAME']
-    train = pd.read_csv(
-        f'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\dataset\\{dataset_name}'
-        f'\\train_binary.csv')
-    test = pd.read_csv(
-        f'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\dataset\\{dataset_name}'
-        f'\\test_binary.csv')
+    base_path = Path(__file__).resolve().parent
+    train = pd.read_csv(base_path.joinpath(f'dataset\\{dataset_name}\\train_binary.csv'))
+    test = pd.read_csv(base_path.joinpath(f'dataset\\{dataset_name}\\test_binary.csv'))
 
     XGlobal, YGlobal = parse_data(train, config['DATASET_NAME'], config['CLASSIFICATION_MODE'])
     XTestGlobal, YTestGlobal = parse_data(test, config['DATASET_NAME'], config['CLASSIFICATION_MODE'])
