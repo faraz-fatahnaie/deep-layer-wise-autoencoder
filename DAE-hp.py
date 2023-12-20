@@ -186,6 +186,11 @@ def DAE(params_ae, method: str = 'layer-wise'):
                                                         hidden_size=hidden_size[2],
                                                         activation=params_ae['ae_activation'])
 
+            if method == 'layer-wise-encoder':
+                autoencoder3, encoder3 = partial_ae_factory(in_shape=hidden_size[1],
+                                                            hidden_size=X_train.shape[1],
+                                                            activation=params_ae['ae_activation'])
+
             opt_factory_ae = OptimizerFactory(opt=params_ae['ae_optimizer'],
                                               lr_schedule=config['AE_SCHEDULE'],
                                               len_dataset=len(X_train),
@@ -277,6 +282,14 @@ def DAE(params_ae, method: str = 'layer-wise'):
             deep_autoencoder.get_layer('encode2').set_weights(autoencoder2.layers[1].get_weights())
             deep_autoencoder.get_layer('encode3').set_weights(autoencoder3.layers[1].get_weights())
 
+            if method == 'layer-wise-encoder':
+                decode_da = Dense(hidden_size[2], activation=params_ae['ae_activation'], name='decode')(encoded3_da)
+                deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decode_da)
+                deep_autoencoder.get_layer('encode1').set_weights(autoencoder1.layers[1].get_weights())
+                deep_autoencoder.get_layer('encode2').set_weights(autoencoder2.layers[1].get_weights())
+                deep_autoencoder.get_layer('encode3').set_weights(autoencoder3.layers[1].get_weights())
+                deep_autoencoder.get_layer('decode').set_weights(autoencoder3.layers[2].get_weights())
+
             outLayer_pae_elapsed_time = 0
             if method == 'layer-wise':
                 decoded1_da = Dense(X_train.shape[1], activation=params_ae['ae_out_activation'], name='out',
@@ -284,6 +297,10 @@ def DAE(params_ae, method: str = 'layer-wise'):
                                     bias_initializer=tf.keras.initializers.Zeros()
                                     )(encoded3_da)
                 deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decoded1_da)
+
+                deep_autoencoder.get_layer('encode1').set_weights(autoencoder1.layers[1].get_weights())
+                deep_autoencoder.get_layer('encode2').set_weights(autoencoder2.layers[1].get_weights())
+                deep_autoencoder.get_layer('encode3').set_weights(autoencoder3.layers[1].get_weights())
 
                 sgd4 = opt_factory_ae.get_opt()
                 deep_autoencoder.compile(loss=params_ae['ae_loss'], optimizer=sgd4)
