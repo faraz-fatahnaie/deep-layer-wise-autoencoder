@@ -283,7 +283,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
             deep_autoencoder.get_layer('encode3').set_weights(autoencoder3.layers[1].get_weights())
 
             if method == 'layer-wise-encoder':
-                decode_da = Dense(hidden_size[2], activation=params_ae['ae_activation'], name='decode')(encoded3_da)
+                decode_da = Dense(X_train.shape[1], activation=params_ae['ae_activation'], name='decode')(encoded3_da)
                 deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decode_da)
                 deep_autoencoder.get_layer('encode1').set_weights(autoencoder1.layers[1].get_weights())
                 deep_autoencoder.get_layer('encode2').set_weights(autoencoder2.layers[1].get_weights())
