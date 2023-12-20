@@ -78,6 +78,8 @@ def DAE(params_ae, method: str = 'layer-wise'):
 
     time_file = open(Path(SAVE_PATH_).joinpath('time.txt'), 'w')
     train_time = 0
+    tr_loss = 0
+    val_loss = 0
 
     dataset_name = config['DATASET_NAME']
     epoch = config['AE_EPOCH']
@@ -108,7 +110,68 @@ def DAE(params_ae, method: str = 'layer-wise'):
         except:
             pass
     else:
-        if method == 'layer-wise':
+        if method == 'formal':
+            input_img = tensorflow.keras.Input(shape=(X_train.shape[1],))
+            encoded1_da = Dense(hidden_size[0], activation=params_ae['ae_activation'], name='encode1',
+                                kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+                                bias_initializer=tf.keras.initializers.Zeros()
+                                )(input_img)
+            encoded2_da = Dense(hidden_size[1], activation=params_ae['ae_activation'], name='encode2',
+                                kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+                                bias_initializer=tf.keras.initializers.Zeros()
+                                )(encoded1_da)
+            encoded3_da = Dense(hidden_size[2], activation=params_ae['ae_activation'], name='encode3',
+                                kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+                                bias_initializer=tf.keras.initializers.Zeros()
+                                )(encoded2_da)
+            decoded1_da = Dense(X_train.shape[1], activation=params_ae['ae_out_activation'], name='out',
+                                kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+                                bias_initializer=tf.keras.initializers.Zeros()
+                                )(encoded3_da)
+
+            deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decoded1_da)
+
+            opt_factory_ae = OptimizerFactory(opt=params_ae['ae_optimizer'],
+                                              lr_schedule=config['AE_SCHEDULE'],
+                                              len_dataset=len(X_train),
+                                              epochs=epoch,
+                                              batch_size=params_ae['ae_batch'],
+                                              init_lr=config['AE_INITIAL_LR'],
+                                              final_lr=config['AE_FINAL_LR'])
+
+            sgd = opt_factory_ae.get_opt()
+            deep_autoencoder.compile(loss=params_ae['ae_loss'], optimizer=sgd)
+
+            early_stop = tf.keras.callbacks.EarlyStopping(
+                monitor="val_loss",
+                # min_delta=0.0001,
+                patience=10,
+                mode="auto",
+                restore_best_weights=True
+            )
+
+            ae_start_time = time.time()
+            history = deep_autoencoder.fit(X_train, X_train,
+                                           validation_data=(X_val, X_val),
+                                           epochs=config['AE_EPOCH'], batch_size=params_ae['ae_batch'],
+                                           shuffle=False,
+                                           callbacks=[early_stop],
+                                           verbose=2
+                                           )
+            ae_elapsed_time = time.time() - ae_start_time
+
+            train_time = int(ae_elapsed_time)
+            time_file.write(f'Autoencoder training (sec): {train_time}\n')
+
+            stopped_epoch = early_stop.stopped_epoch
+
+            tr_loss = history.history['loss'][stopped_epoch]
+            val_loss = history.history['val_loss'][stopped_epoch]
+
+            deep_autoencoder.save(Path(SAVE_PATH_).joinpath("DAE.keras"))
+            deep_autoencoder.save(ae_path)
+
+        else:
             # ================= LAYER 1 =================
             autoencoder1, encoder1 = partial_ae_factory(in_shape=X_train.shape[1],
                                                         hidden_size=hidden_size[0],
@@ -145,21 +208,21 @@ def DAE(params_ae, method: str = 'layer-wise'):
 
             early_stop1 = tf.keras.callbacks.EarlyStopping(
                 monitor="val_loss",
-                min_delta=0.0001,
+                # min_delta=0.0001,
                 patience=10,
                 mode="auto",
                 restore_best_weights=True
             )
             early_stop2 = tf.keras.callbacks.EarlyStopping(
                 monitor="val_loss",
-                min_delta=0.0001,
+                # min_delta=0.0001,
                 patience=10,
                 mode="auto",
                 restore_best_weights=True
             )
-            early_stop3 = tf.keras.callbacks.EarlyStopping(
+            early_stop_last = tf.keras.callbacks.EarlyStopping(
                 monitor="val_loss",
-                min_delta=0.0001,
+                # min_delta=0.0001,
                 patience=10,
                 mode="auto",
                 restore_best_weights=True
@@ -196,7 +259,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
                                        epochs=epoch,
                                        batch_size=params_ae['ae_batch'],
                                        shuffle=False,
-                                       callbacks=[early_stop3],
+                                       callbacks=[early_stop_last],
                                        verbose=2
                                        )
 
@@ -207,109 +270,52 @@ def DAE(params_ae, method: str = 'layer-wise'):
             encoded1_da = Dense(hidden_size[0], activation=params_ae['ae_activation'], name='encode1')(input_img)
             encoded2_da = Dense(hidden_size[1], activation=params_ae['ae_activation'], name='encode2')(encoded1_da)
             encoded3_da = Dense(hidden_size[2], activation=params_ae['ae_activation'], name='encode3')(encoded2_da)
-            decoded1_da = Dense(X_train.shape[1], activation=params_ae['ae_out_activation'], name='out',
-                                kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
-                                bias_initializer=tf.keras.initializers.Zeros()
-                                )(encoded3_da)
 
-            deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decoded1_da)
+            deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=encoded3_da)
 
             deep_autoencoder.get_layer('encode1').set_weights(autoencoder1.layers[1].get_weights())
             deep_autoencoder.get_layer('encode2').set_weights(autoencoder2.layers[1].get_weights())
             deep_autoencoder.get_layer('encode3').set_weights(autoencoder3.layers[1].get_weights())
 
+            outLayer_pae_elapsed_time = 0
+            if method == 'layer-wise':
+                decoded1_da = Dense(X_train.shape[1], activation=params_ae['ae_out_activation'], name='out',
+                                    kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+                                    bias_initializer=tf.keras.initializers.Zeros()
+                                    )(encoded3_da)
+                deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decoded1_da)
+
+                sgd4 = opt_factory_ae.get_opt()
+                deep_autoencoder.compile(loss=params_ae['ae_loss'], optimizer=sgd4)
+
+                early_stop_last = tf.keras.callbacks.EarlyStopping(
+                    monitor="val_loss",
+                    min_delta=0.0001,
+                    patience=10,
+                    mode="auto",
+                    restore_best_weights=True
+                )
+
+                print('========== LAYER 4 ==========')
+                outLayer_pae_start_time = time.time()
+                history = deep_autoencoder.fit(X_train, X_train,
+                                               validation_data=(X_val, X_val),
+                                               epochs=epoch,
+                                               batch_size=params_ae['ae_batch'],
+                                               shuffle=False,
+                                               callbacks=[early_stop_last],
+                                               verbose=2
+                                               )
+                outLayer_pae_elapsed_time = time.time() - outLayer_pae_start_time
+
             # deep_autoencoder.get_layer('encode1').trainable = False
             # deep_autoencoder.get_layer('encode2').trainable = False
             # deep_autoencoder.get_layer('encode3').trainable = False
 
-            sgd4 = opt_factory_ae.get_opt()
-            deep_autoencoder.compile(loss=params_ae['ae_loss'], optimizer=sgd4)
-
-            early_stop4 = tf.keras.callbacks.EarlyStopping(
-                monitor="val_loss",
-                min_delta=0.0001,
-                patience=10,
-                mode="auto",
-                restore_best_weights=True
-            )
-
-            print('========== LAYER 4 ==========')
-            outLayer_pae_start_time = time.time()
-            history = deep_autoencoder.fit(X_train, X_train,
-                                           validation_data=(X_val, X_val),
-                                           epochs=epoch, batch_size=params_ae['ae_batch'],
-                                           shuffle=False,
-                                           callbacks=[early_stop4],
-                                           verbose=2
-                                           )
-            outLayer_pae_elapsed_time = time.time() - outLayer_pae_start_time
-
             train_time = int(pae_train_elapsed_time + outLayer_pae_elapsed_time)
             time_file.write(f'Autoencoder training (sec): {train_time}\n')
 
-            stopped_epoch = early_stop4.stopped_epoch
-
-            tr_loss = history.history['loss'][stopped_epoch]
-            val_loss = history.history['val_loss'][stopped_epoch]
-
-            deep_autoencoder.save(Path(SAVE_PATH_).joinpath("DAE.keras"))
-            deep_autoencoder.save(ae_path)
-
-        else:
-
-            input_img = tensorflow.keras.Input(shape=(X_train.shape[1],))
-            encoded1_da = Dense(hidden_size[0], activation=params_ae['ae_activation'], name='encode1',
-                                kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
-                                bias_initializer=tf.keras.initializers.Zeros()
-                                )(input_img)
-            encoded2_da = Dense(hidden_size[1], activation=params_ae['ae_activation'], name='encode2',
-                                kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
-                                bias_initializer=tf.keras.initializers.Zeros()
-                                )(encoded1_da)
-            encoded3_da = Dense(hidden_size[2], activation=params_ae['ae_activation'], name='encode3',
-                                kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
-                                bias_initializer=tf.keras.initializers.Zeros()
-                                )(encoded2_da)
-            decoded1_da = Dense(X_train.shape[1], activation=params_ae['ae_out_activation'], name='out',
-                                kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
-                                bias_initializer=tf.keras.initializers.Zeros()
-                                )(encoded3_da)
-
-            deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decoded1_da)
-
-            opt_factory_ae = OptimizerFactory(opt=params_ae['ae_optimizer'],
-                                              lr_schedule=config['AE_SCHEDULE'],
-                                              len_dataset=len(X_train),
-                                              epochs=epoch,
-                                              batch_size=params_ae['ae_batch'],
-                                              init_lr=config['AE_INITIAL_LR'],
-                                              final_lr=config['AE_FINAL_LR'])
-
-            sgd = opt_factory_ae.get_opt()
-            deep_autoencoder.compile(loss=params_ae['ae_loss'], optimizer=sgd)
-
-            early_stop = tf.keras.callbacks.EarlyStopping(
-                monitor="val_loss",
-                min_delta=0.0001,
-                patience=10,
-                mode="auto",
-                restore_best_weights=True
-            )
-
-            ae_start_time = time.time()
-            history = deep_autoencoder.fit(X_train, X_train,
-                                           validation_data=(X_val, X_val),
-                                           epochs=config['AE_EPOCH'], batch_size=params_ae['ae_batch'],
-                                           shuffle=False,
-                                           callbacks=[early_stop],
-                                           verbose=2
-                                           )
-            ae_elapsed_time = time.time() - ae_start_time
-
-            train_time = int(ae_elapsed_time)
-            time_file.write(f'Autoencoder training (sec): {train_time}\n')
-
-            stopped_epoch = early_stop.stopped_epoch
+            stopped_epoch = early_stop_last.stopped_epoch
 
             tr_loss = history.history['loss'][stopped_epoch]
             val_loss = history.history['val_loss'][stopped_epoch]
@@ -354,13 +360,15 @@ def train_cf(x_train, y_train, x_val, y_val, params):
                                kernel_initializer='glorot_uniform', bias_initializer='zeros')
         cf.add(Bidirectional(forward_layer1, backward_layer=backward_layer1, merge_mode=params['merge_mode1']))
 
+        cf.add(Dropout(params['dropout1']))
+
         forward_layer2 = LSTM(units=params['unit2'], return_sequences=True,
                               kernel_initializer='glorot_uniform', bias_initializer='zeros')
         backward_layer2 = LSTM(units=params['unit2'], return_sequences=True, go_backwards=True,
                                kernel_initializer='glorot_uniform', bias_initializer='zeros')
         cf.add(Bidirectional(forward_layer2, backward_layer=backward_layer2, merge_mode=params['merge_mode2']))
 
-        cf.add(Dropout(params['dropout']))
+        cf.add(Dropout(params['dropout2']))
 
         cf.add(Flatten())
         cf.add(Dense(y_train.shape[1],
@@ -375,9 +383,12 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         cf.add(tensorflow.keras.Input(shape=(1, n_features)))
 
         cf.add(LSTM(params['unit1'], return_sequences=True))
+
+        cf.add(Dropout(params['dropout1']))
+
         cf.add(LSTM(params['unit2'], return_sequences=True))
 
-        cf.add(Dropout(params['dropout']))
+        cf.add(Dropout(params['dropout2']))
 
         cf.add(Flatten())
         cf.add(Dense(y_train.shape[1],
@@ -456,11 +467,12 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         "train_time": int(train_end_time - train_start_time),
         "unit1": params["unit1"],
         "unit2": params["unit2"],
-        "merge_mode1": params['merge_mode1'],
-        "merge_mode2": params['merge_mode2'],
+        # "merge_mode1": params['merge_mode1'],
+        # "merge_mode2": params['merge_mode2'],
         "learning_rate": params["learning_rate"],
         "batch": params["batch"],
-        "dropout": params["dropout"],
+        "dropout1": params["dropout1"],
+        "dropout2": params["dropout2"],
         "TP_val": cf[0][0],
         "FP_val": cf[0][1],
         "TN_val": cf[1][1],
@@ -686,7 +698,8 @@ def train_DAE(dataset_name):
         "unit2": hp.choice("unit2", config['UNIT']),
         "batch": hp.choice("batch", config['BATCH']),
         # "epoch": hp.choice("epoch", config['EPOCH']),
-        'dropout': hp.uniform("dropout", config['MIN_DROPOUT'], config['MAX_DROPOUT']),
+        'dropout1': hp.uniform("dropout1", config['MIN_DROPOUT'], config['MAX_DROPOUT']),
+        'dropout2': hp.uniform("dropout2", config['MIN_DROPOUT'], config['MAX_DROPOUT']),
         "learning_rate": hp.uniform("learning_rate", config['MIN_LR'], config['MAX_LR'])
     }
     if config['MODEL_NAME'] == 'BILSTM':
