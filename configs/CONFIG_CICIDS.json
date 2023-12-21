@@ -10,6 +10,7 @@
     "trainable": false,
     "fine_tuning": false,
     "ae_method": "layer-wise",
+    "n_layer": 3,
     "ae_unit": 128,
     "pretrain_epoch": 150,
     "ae_batch": 32,
