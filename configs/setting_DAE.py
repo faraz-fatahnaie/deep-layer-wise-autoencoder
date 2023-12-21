@@ -19,7 +19,6 @@ def setting_DAE(config_file: json = None, project: str = 'DAE'):
     config['AE_TRAINABLE'] = config_file['autoencoder']['trainable']
     config['AE_FINETUNE'] = config_file['autoencoder']['fine_tuning']
     config['AE_METHOD'] = config_file['autoencoder']['ae_method']
-    config['AE_N_LAYER'] = config_file['autoencoder']['n_layer']
     config['AE_UNIT'] = config_file['autoencoder']['ae_unit']
     config['AE_EPOCH'] = config_file['autoencoder']['pretrain_epoch']
     config['AE_BATCH'] = config_file['autoencoder']['ae_batch']
