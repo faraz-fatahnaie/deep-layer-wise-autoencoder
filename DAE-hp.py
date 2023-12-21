@@ -28,6 +28,7 @@ import gc
 
 # tf.compat.v1.disable_eager_execution()
 # os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+tf.config.set_visible_devices([], 'GPU')
 print(device_lib.list_local_devices())
 # gpus = tf.config.list_physical_devices('GPU')
 # device = '/GPU:0' if tf.config.list_physical_devices('GPU') else '/CPU:0'
