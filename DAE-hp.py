@@ -95,7 +95,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
             hidden_size)) + f'_A-{activation}_OA-{out_activation}_{loss_fn}_E{epoch}_B{batch_size}_{opt}_{method}'
 
     ae_path = Path(
-        f'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\trained_ae\\{ae_filename}.keras')
+        f'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\trained_ae\\best\\{ae_filename}.keras')
 
     X_train = np.array(XGlobal)
     X_val = np.array(XValGlobal)
@@ -290,16 +290,16 @@ def DAE(params_ae, method: str = 'layer-wise'):
                                     )(encoded3_da)
                 deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decoded1_da)
 
+                sgd4 = opt_factory_ae.get_opt()
+                deep_autoencoder.compile(loss=params_ae['ae_loss'], optimizer=sgd4)
+
                 deep_autoencoder.get_layer('encode1').set_weights(autoencoder1.layers[1].get_weights())
                 deep_autoencoder.get_layer('encode2').set_weights(autoencoder2.layers[1].get_weights())
                 deep_autoencoder.get_layer('encode3').set_weights(autoencoder3.layers[1].get_weights())
 
-                deep_autoencoder.get_layer('encode1').trainable = False
-                deep_autoencoder.get_layer('encode2').trainable = False
-                deep_autoencoder.get_layer('encode3').trainable = False
-
-                sgd4 = opt_factory_ae.get_opt()
-                deep_autoencoder.compile(loss=params_ae['ae_loss'], optimizer=sgd4)
+                # deep_autoencoder.get_layer('encode1').trainable = False
+                # deep_autoencoder.get_layer('encode2').trainable = False
+                # deep_autoencoder.get_layer('encode3').trainable = False
 
                 early_stop_last = tf.keras.callbacks.EarlyStopping(
                     monitor="val_loss",

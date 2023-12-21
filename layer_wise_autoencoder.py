@@ -14,7 +14,7 @@ def partial_ae_factory(in_shape, hidden_size, activation):
     encoded = tf.keras.layers.Dense(hidden_size, activation=activation,
                                     kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
                                     bias_initializer=tf.keras.initializers.Zeros())(input_img)
-    decoded = tf.keras.layers.Dense(in_shape, activation='linear',
+    decoded = tf.keras.layers.Dense(in_shape, activation=activation,
                                     kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
                                     bias_initializer=tf.keras.initializers.Zeros())(encoded)
 
