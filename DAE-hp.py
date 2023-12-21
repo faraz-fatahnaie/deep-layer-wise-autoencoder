@@ -146,7 +146,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
 
             early_stop = tf.keras.callbacks.EarlyStopping(
                 monitor="val_loss",
-                # min_delta=0.0001,
+                min_delta=0.0001,
                 patience=10,
                 mode="auto",
                 restore_best_weights=True
