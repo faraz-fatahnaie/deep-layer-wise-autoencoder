@@ -96,8 +96,10 @@ def DAE(params_ae, method: str = 'layer-wise'):
         map(str,
             hidden_size)) + f'_A-{activation}_OA-{out_activation}_{loss_fn}_E{epoch}_B{batch_size}_{opt}_{method}'
 
-    ae_path = Path(
-        f'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\trained_ae\\best\\{ae_filename}.keras')
+    BASE_DIR = Path(__file__).resolve().parent
+    ae_path = os.path.join(BASE_DIR, 'trained_ae', f'{ae_filename}.keras')
+    # ae_path = Path(
+    #     f'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\trained_ae\\{ae_filename}.keras')
 
     X_train = np.array(XGlobal)
     X_val = np.array(XValGlobal)
