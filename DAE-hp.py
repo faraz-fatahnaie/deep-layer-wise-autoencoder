@@ -215,21 +215,21 @@ def DAE(params_ae, method: str = 'layer-wise'):
 
             early_stop1 = tf.keras.callbacks.EarlyStopping(
                 monitor="val_loss",
-                # min_delta=0.0001,
+                min_delta=0.0001,
                 patience=10,
                 mode="auto",
                 restore_best_weights=True
             )
             early_stop2 = tf.keras.callbacks.EarlyStopping(
                 monitor="val_loss",
-                # min_delta=0.0001,
+                min_delta=0.0001,
                 patience=10,
                 mode="auto",
                 restore_best_weights=True
             )
             early_stop_last = tf.keras.callbacks.EarlyStopping(
                 monitor="val_loss",
-                # min_delta=0.0001,
+                min_delta=0.0001,
                 patience=10,
                 mode="auto",
                 restore_best_weights=True
@@ -305,7 +305,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
 
                 early_stop_last = tf.keras.callbacks.EarlyStopping(
                     monitor="val_loss",
-                    # min_delta=0.0001,
+                    min_delta=0.0001,
                     patience=10,
                     mode="auto",
                     restore_best_weights=True
@@ -395,11 +395,9 @@ def train_cf(x_train, y_train, x_val, y_val, params):
 
         cf.add(LSTM(params['unit1'], return_sequences=True))
 
-        cf.add(Dropout(params['dropout1']))
-
         cf.add(LSTM(params['unit2'], return_sequences=True))
 
-        cf.add(Dropout(params['dropout2']))
+        cf.add(Dropout(params['dropout']))
 
         cf.add(Flatten())
         cf.add(Dense(y_train.shape[1],
@@ -478,12 +476,11 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         "train_time": int(train_end_time - train_start_time),
         "unit1": params["unit1"],
         "unit2": params["unit2"],
-        # "merge_mode1": params['merge_mode1'],
-        # "merge_mode2": params['merge_mode2'],
+        "merge_mode1": params['merge_mode1'],
+        "merge_mode2": params['merge_mode2'],
         "learning_rate": params["learning_rate"],
         "batch": params["batch"],
-        "dropout1": params["dropout1"],
-        "dropout2": params["dropout2"],
+        "dropout1": params["dropout"],
         "TP_val": cf[0][0],
         "FP_val": cf[0][1],
         "TN_val": cf[1][1],
@@ -706,12 +703,11 @@ def train_DAE(dataset_name):
         "unit2": hp.choice("unit2", config['UNIT']),
         "batch": hp.choice("batch", config['BATCH']),
         # "epoch": hp.choice("epoch", config['EPOCH']),
-        'dropout1': hp.uniform("dropout1", config['MIN_DROPOUT'], config['MAX_DROPOUT']),
-        'dropout2': hp.uniform("dropout2", config['MIN_DROPOUT'], config['MAX_DROPOUT']),
+        'dropout': hp.uniform("dropout", config['MIN_DROPOUT'], config['MAX_DROPOUT']),
         "learning_rate": hp.uniform("learning_rate", config['MIN_LR'], config['MAX_LR'])
     }
     if config['MODEL_NAME'] == 'BILSTM':
-        cf_hyperparameters['merge_mode2'] = hp.choice("merge_mode2", config['MERGE_MODE'])
+        cf_hyperparameters['merge_mode1'] = hp.choice("merge_mode1", config['MERGE_MODE'])
         cf_hyperparameters['merge_mode2'] = hp.choice("merge_mode2", config['MERGE_MODE'])
 
     trials = Trials()
