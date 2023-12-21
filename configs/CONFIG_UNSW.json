@@ -9,7 +9,7 @@
   "autoencoder": {
     "trainable": false,
     "fine_tuning": false,
-    "ae_method": "layer-wise-v2",
+    "ae_method": "layer-wise-v3",
     "n_layer": 3,
     "ae_unit": 128,
     "pretrain_epoch": 150,

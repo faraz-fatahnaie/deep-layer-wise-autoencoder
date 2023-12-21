@@ -138,6 +138,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
             mode="auto",
             restore_best_weights=True
         )
+        print('=============== LAYER 1 ===============')
         history = deep_autoencoder.fit(X_train, X_train,
                                        validation_data=(X_val, X_val),
                                        epochs=epoch,
@@ -148,6 +149,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
                                        )
 
         for i in range(config['AE_N_LAYER'] - 1):
+            print(f'=============== LAYER {i+1} ===============')
             new_layer = tf.keras.layers.Dense(params_ae["ae_unit"], activation=params_ae['ae_activation'],
                                               kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
                                               bias_initializer=tf.keras.initializers.Zeros())(
@@ -157,8 +159,8 @@ def DAE(params_ae, method: str = 'layer-wise'):
                                             bias_initializer=tf.keras.initializers.Zeros())(new_layer)
             deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decoded)
 
-            for layer in deep_autoencoder.layers[:-2]:
-                layer.trainable = False
+            # for layer in deep_autoencoder.layers[:-2]:
+            #     layer.trainable = False
 
             sgd = opt_factory_ae.get_opt()
             deep_autoencoder.compile(loss=params_ae['ae_loss'], optimizer=sgd)
