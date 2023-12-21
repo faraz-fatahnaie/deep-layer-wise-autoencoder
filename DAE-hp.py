@@ -373,15 +373,13 @@ def train_cf(x_train, y_train, x_val, y_val, params):
                                kernel_initializer='glorot_uniform', bias_initializer='zeros')
         cf.add(Bidirectional(forward_layer1, backward_layer=backward_layer1, merge_mode=params['merge_mode1']))
 
-        cf.add(Dropout(params['dropout1']))
-
         forward_layer2 = LSTM(units=params['unit2'], return_sequences=True,
                               kernel_initializer='glorot_uniform', bias_initializer='zeros')
         backward_layer2 = LSTM(units=params['unit2'], return_sequences=True, go_backwards=True,
                                kernel_initializer='glorot_uniform', bias_initializer='zeros')
         cf.add(Bidirectional(forward_layer2, backward_layer=backward_layer2, merge_mode=params['merge_mode2']))
 
-        cf.add(Dropout(params['dropout2']))
+        cf.add(Dropout(params['dropout']))
 
         cf.add(Flatten())
         cf.add(Dense(y_train.shape[1],
