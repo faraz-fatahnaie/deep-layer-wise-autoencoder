@@ -480,7 +480,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         "merge_mode2": params['merge_mode2'],
         "learning_rate": params["learning_rate"],
         "batch": params["batch"],
-        "dropout1": params["dropout"],
+        "dropout": params["dropout"],
         "TP_val": cf[0][0],
         "FP_val": cf[0][1],
         "TN_val": cf[1][1],
