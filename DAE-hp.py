@@ -279,7 +279,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
             encoded2_da = Dense(hidden_size[1], activation=params_ae['ae_activation'], name='encode2')(encoded1_da)
             encoded3_da = Dense(hidden_size[2], activation=params_ae['ae_activation'], name='encode3')(encoded2_da)
             decoded1_da = Dense(X_train.shape[1], activation=params_ae['ae_out_activation'], name='out',
-                                kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+                                kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
                                 bias_initializer=tf.keras.initializers.Zeros()
                                 )(encoded3_da)
 
@@ -359,15 +359,19 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         cf.add(tensorflow.keras.Input(shape=(1, n_features)))
 
         forward_layer1 = LSTM(units=params['unit1'], return_sequences=True,
-                              kernel_initializer='glorot_uniform', bias_initializer='zeros')
+                              kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+                              bias_initializer=tf.keras.initializers.Zeros())
         backward_layer1 = LSTM(units=params['unit1'], return_sequences=True, go_backwards=True,
-                               kernel_initializer='glorot_uniform', bias_initializer='zeros')
+                               kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+                               bias_initializer=tf.keras.initializers.Zeros())
         cf.add(Bidirectional(forward_layer1, backward_layer=backward_layer1, merge_mode=params['merge_mode1']))
 
         forward_layer2 = LSTM(units=params['unit2'], return_sequences=True,
-                              kernel_initializer='glorot_uniform', bias_initializer='zeros')
+                              kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+                              bias_initializer=tf.keras.initializers.Zeros())
         backward_layer2 = LSTM(units=params['unit2'], return_sequences=True, go_backwards=True,
-                               kernel_initializer='glorot_uniform', bias_initializer='zeros')
+                               kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+                               bias_initializer=tf.keras.initializers.Zeros())
         cf.add(Bidirectional(forward_layer2, backward_layer=backward_layer2, merge_mode=params['merge_mode2']))
 
         cf.add(Dropout(params['dropout']))
@@ -387,10 +391,12 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         cf.add(tensorflow.keras.Input(shape=(1, n_features)))
 
         cf.add(LSTM(params['unit1'], return_sequences=True,
-                    kernel_initializer='glorot_uniform', bias_initializer='zeros'))
+                    kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+                    bias_initializer=tf.keras.initializers.Zeros()))
 
         cf.add(LSTM(params['unit2'], return_sequences=True,
-                    kernel_initializer='glorot_uniform', bias_initializer='zeros'))
+                    kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+                    bias_initializer=tf.keras.initializers.Zeros()))
 
         cf.add(Dropout(params['dropout']))
 
