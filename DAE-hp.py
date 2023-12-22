@@ -190,10 +190,6 @@ def DAE(params_ae, method: str = 'layer-wise'):
                                                         hidden_size=hidden_size[2],
                                                         activation=params_ae['ae_activation'])
 
-            if method == 'layer-wise-encoder':
-                autoencoder3, encoder3 = partial_ae_factory(in_shape=hidden_size[1],
-                                                            hidden_size=X_train.shape[1],
-                                                            activation=params_ae['ae_activation'])
 
             opt_factory_ae = OptimizerFactory(opt=params_ae['ae_optimizer'],
                                               lr_schedule=config['AE_SCHEDULE'],
@@ -279,51 +275,43 @@ def DAE(params_ae, method: str = 'layer-wise'):
             encoded1_da = Dense(hidden_size[0], activation=params_ae['ae_activation'], name='encode1')(input_img)
             encoded2_da = Dense(hidden_size[1], activation=params_ae['ae_activation'], name='encode2')(encoded1_da)
             encoded3_da = Dense(hidden_size[2], activation=params_ae['ae_activation'], name='encode3')(encoded2_da)
+            decoded1_da = Dense(X_train.shape[1], activation=params_ae['ae_out_activation'], name='out',
+                                kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+                                bias_initializer=tf.keras.initializers.Zeros()
+                                )(encoded3_da)
 
-            deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=encoded3_da)
+            deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decoded1_da)
+
+            sgd4 = opt_factory_ae.get_opt()
+            deep_autoencoder.compile(loss=params_ae['ae_loss'], optimizer=sgd4)
 
             deep_autoencoder.get_layer('encode1').set_weights(autoencoder1.layers[1].get_weights())
             deep_autoencoder.get_layer('encode2').set_weights(autoencoder2.layers[1].get_weights())
             deep_autoencoder.get_layer('encode3').set_weights(autoencoder3.layers[1].get_weights())
 
-            outLayer_pae_elapsed_time = 0
-            if method == 'layer-wise':
-                decoded1_da = Dense(X_train.shape[1], activation=params_ae['ae_out_activation'], name='out',
-                                    kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
-                                    bias_initializer=tf.keras.initializers.Zeros()
-                                    )(encoded3_da)
-                deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decoded1_da)
+            # deep_autoencoder.get_layer('encode1').trainable = False
+            # deep_autoencoder.get_layer('encode2').trainable = False
+            # deep_autoencoder.get_layer('encode3').trainable = False
 
-                sgd4 = opt_factory_ae.get_opt()
-                deep_autoencoder.compile(loss=params_ae['ae_loss'], optimizer=sgd4)
+            early_stop_last = tf.keras.callbacks.EarlyStopping(
+                monitor="val_loss",
+                min_delta=0.0001,
+                patience=10,
+                mode="auto",
+                restore_best_weights=True
+            )
 
-                deep_autoencoder.get_layer('encode1').set_weights(autoencoder1.layers[1].get_weights())
-                deep_autoencoder.get_layer('encode2').set_weights(autoencoder2.layers[1].get_weights())
-                deep_autoencoder.get_layer('encode3').set_weights(autoencoder3.layers[1].get_weights())
-
-                # deep_autoencoder.get_layer('encode1').trainable = False
-                # deep_autoencoder.get_layer('encode2').trainable = False
-                # deep_autoencoder.get_layer('encode3').trainable = False
-
-                early_stop_last = tf.keras.callbacks.EarlyStopping(
-                    monitor="val_loss",
-                    min_delta=0.0001,
-                    patience=10,
-                    mode="auto",
-                    restore_best_weights=True
-                )
-
-                print('========== LAYER 4 ==========')
-                outLayer_pae_start_time = time.time()
-                history = deep_autoencoder.fit(X_train, X_train,
-                                               validation_data=(X_val, X_val),
-                                               epochs=epoch,
-                                               batch_size=params_ae['ae_batch'],
-                                               shuffle=False,
-                                               callbacks=[early_stop_last],
-                                               verbose=2
-                                               )
-                outLayer_pae_elapsed_time = time.time() - outLayer_pae_start_time
+            print('========== LAYER 4 ==========')
+            outLayer_pae_start_time = time.time()
+            history = deep_autoencoder.fit(X_train, X_train,
+                                           validation_data=(X_val, X_val),
+                                           epochs=epoch,
+                                           batch_size=params_ae['ae_batch'],
+                                           shuffle=False,
+                                           callbacks=[early_stop_last],
+                                           verbose=2
+                                           )
+            outLayer_pae_elapsed_time = time.time() - outLayer_pae_start_time
 
             train_time = int(pae_train_elapsed_time + outLayer_pae_elapsed_time)
             time_file.write(f'Autoencoder training (sec): {train_time}\n')
@@ -470,14 +458,12 @@ def train_cf(x_train, y_train, x_val, y_val, params):
 
     del x_train, x_val, y_train, y_val, Y_predicted
 
-    return model, {
+    param = {
         "tid": tid,
         "epochs": epochs,
         "train_time": int(train_end_time - train_start_time),
         "unit1": params["unit1"],
         "unit2": params["unit2"],
-        "merge_mode1": params['merge_mode1'],
-        "merge_mode2": params['merge_mode2'],
         "learning_rate": params["learning_rate"],
         "batch": params["batch"],
         "dropout": params["dropout"],
@@ -490,6 +476,12 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         "R_val": recall,
         "F1_val": f1,
     }
+
+    if config['MODEL_NAME'] == 'BILSTM':
+        param["merge_mode1"] = params['merge_mode1']
+        param["merge_mode2"] = params['merge_mode2']
+
+    return model, param
 
 
 def hyperopt_cf(params):
