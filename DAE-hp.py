@@ -65,13 +65,17 @@ SavedParametersAE = list()
 Mode = str()
 Name = str()
 SAVE_PATH_ = str()
+result_path = str()
 CHECKPOINT_PATH_ = str()
 
 tid = 0
+num_loaded_evals = 0
 best_loss = float('inf')
 best_val_acc = 0
 best_ae = None
 best_params = dict()
+load_previous_result = True
+continue_loading = True
 
 
 def DAE(params_ae, method: str = 'layer-wise'):
@@ -189,7 +193,6 @@ def DAE(params_ae, method: str = 'layer-wise'):
             autoencoder3, encoder3 = partial_ae_factory(in_shape=hidden_size[1],
                                                         hidden_size=hidden_size[2],
                                                         activation=params_ae['ae_activation'])
-
 
             opt_factory_ae = OptimizerFactory(opt=params_ae['ae_optimizer'],
                                               lr_schedule=config['AE_SCHEDULE'],
@@ -340,7 +343,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
     global tid
     global best_ae
 
-    tid += 1
+    tid = num_loaded_evals + 1
     tf.keras.backend.clear_session()
     print(params)
     x_train = np.array(x_train)
@@ -372,6 +375,8 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         cf.add(Flatten())
         cf.add(Dense(y_train.shape[1],
                      activation="softmax",
+                     kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+                     bias_initializer=tf.keras.initializers.Zeros(),
                      # kernel_regularizer=tf.keras.regularizers.L1L2(l1=1e-5, l2=1e-4),
                      # bias_regularizer=tf.keras.regularizers.L2(1e-4),
                      # activity_regularizer=tf.keras.regularizers.L2(1e-5)
@@ -381,15 +386,19 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         cf = tf.keras.models.Sequential()
         cf.add(tensorflow.keras.Input(shape=(1, n_features)))
 
-        cf.add(LSTM(params['unit1'], return_sequences=True))
+        cf.add(LSTM(params['unit1'], return_sequences=True,
+                    kernel_initializer='glorot_uniform', bias_initializer='zeros'))
 
-        cf.add(LSTM(params['unit2'], return_sequences=True))
+        cf.add(LSTM(params['unit2'], return_sequences=True,
+                    kernel_initializer='glorot_uniform', bias_initializer='zeros'))
 
         cf.add(Dropout(params['dropout']))
 
         cf.add(Flatten())
         cf.add(Dense(y_train.shape[1],
                      activation="softmax",
+                     kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+                     bias_initializer=tf.keras.initializers.Zeros(),
                      # kernel_regularizer=tf.keras.regularizers.L1L2(l1=1e-5, l2=1e-4),
                      # bias_regularizer=tf.keras.regularizers.L2(1e-4),
                      # activity_regularizer=tf.keras.regularizers.L2(1e-5)
@@ -488,54 +497,85 @@ def hyperopt_cf(params):
     global SavedParameters
     global best_val_acc
     global best_ae
+    global result_path
+    global load_previous_result
+    global continue_loading
+    global tid
+    global num_loaded_evals
 
-    print("start training")
-    model, val = train_cf(XGlobal, YGlobal, XValGlobal, YValGlobal, params)
+    if (result_path is not None) and continue_loading:
+        result_table = pd.read_csv(result_path)
 
-    print("start predicting")
-    test_start_time = time.time()
-    y_predicted = model.predict(XTestGlobal, workers=4, verbose=2)
-    test_elapsed_time = time.time() - test_start_time
+        tid += 1
+        selected_row = result_table[result_table['tid'] == tid]
+        loss_hp = selected_row['F1_val'].values[0]
+        loss_hp = -loss_hp
+        if tid == len(result_table):
+            continue_loading = False
 
-    y_predicted = np.argmax(y_predicted, axis=1)
-    YTestGlobal_temp = np.argmax(YTestGlobal, axis=1)
-    cm = confusion_matrix(YTestGlobal_temp, y_predicted)
+        if load_previous_result:
+            best_val_acc = result_table['F1_val'].max()
 
-    tf.keras.backend.clear_session()
+            result_table = result_table.sort_values('F1_val', ascending=False)
+            SavedParameters = result_table.to_dict(orient='records')
+            with open((os.path.join(SAVE_PATH_, 'best_result.csv')), 'w', newline='') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=SavedParameters[0].keys())
+                writer.writeheader()
+                writer.writerows(SavedParameters)
 
-    SavedParameters.append(val)
+            num_loaded_evals = len(result_table)
+            load_previous_result = False
 
-    SavedParameters[-1].update({
-        "test_time": int(test_elapsed_time),
-        "TP_test": cm[0][0],
-        "FP_test": cm[0][1],
-        "FN_test": cm[1][0],
-        "TN_test": cm[1][1],
-        "OA_test": metrics.accuracy_score(YTestGlobal_temp, y_predicted),
-        "P_test": metrics.precision_score(YTestGlobal_temp, y_predicted, average='binary'),
-        "R_test": metrics.recall_score(YTestGlobal_temp, y_predicted, average='binary'),
-        "F1_test": metrics.f1_score(YTestGlobal_temp, y_predicted, average='binary'),
-    })
+    else:
+        print("start training")
+        model, param = train_cf(XGlobal, YGlobal, XValGlobal, YValGlobal, params)
 
-    # Save model
-    if SavedParameters[-1]["F1_val"] > best_val_acc:
-        print("new model saved:" + str(SavedParameters[-1]))
-        model.save(os.path.join(SAVE_PATH_, Name.replace(".csv", "_model.h5")))
-        del model
-        best_val_acc = SavedParameters[-1]["F1_val"]
+        print("start predicting")
+        test_start_time = time.time()
+        y_predicted = model.predict(XTestGlobal, workers=4, verbose=2)
+        test_elapsed_time = time.time() - test_start_time
 
-    SavedParameters = sorted(SavedParameters, key=lambda i: i['F1_val'], reverse=True)
+        y_predicted = np.argmax(y_predicted, axis=1)
+        YTestGlobal_temp = np.argmax(YTestGlobal, axis=1)
+        cm = confusion_matrix(YTestGlobal_temp, y_predicted)
 
-    try:
-        with open((os.path.join(SAVE_PATH_, 'best_result.csv')), 'w', newline='') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=SavedParameters[0].keys())
-            writer.writeheader()
-            writer.writerows(SavedParameters)
-    except IOError:
-        print("I/O error")
+        tf.keras.backend.clear_session()
 
-    gc.collect()
-    return {'loss': -val["F1_val"], 'status': STATUS_OK}
+        SavedParameters.append(param)
+
+        SavedParameters[-1].update({
+            "test_time": int(test_elapsed_time),
+            "TP_test": cm[0][0],
+            "FP_test": cm[0][1],
+            "FN_test": cm[1][0],
+            "TN_test": cm[1][1],
+            "OA_test": metrics.accuracy_score(YTestGlobal_temp, y_predicted),
+            "P_test": metrics.precision_score(YTestGlobal_temp, y_predicted, average='binary'),
+            "R_test": metrics.recall_score(YTestGlobal_temp, y_predicted, average='binary'),
+            "F1_test": metrics.f1_score(YTestGlobal_temp, y_predicted, average='binary'),
+        })
+
+        # Save model
+        if SavedParameters[-1]["F1_val"] > best_val_acc:
+            print("new model saved:" + str(SavedParameters[-1]))
+            model.save(os.path.join(SAVE_PATH_, Name.replace(".csv", "_model.h5")))
+            del model
+            best_val_acc = SavedParameters[-1]["F1_val"]
+
+        SavedParameters = sorted(SavedParameters, key=lambda i: i['F1_val'], reverse=True)
+
+        try:
+            with open((os.path.join(SAVE_PATH_, 'best_result.csv')), 'w', newline='') as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=SavedParameters[0].keys())
+                writer.writeheader()
+                writer.writerows(SavedParameters)
+        except IOError:
+            print("I/O error")
+
+        loss_hp = -param["F1_val"]
+        gc.collect()
+
+    return {'loss': loss_hp, 'status': STATUS_OK}
 
 
 def hyperopt_ae(params_ae, method):
@@ -583,6 +623,7 @@ def train_DAE(dataset_name):
     global config
     global SAVE_PATH_
     global CHECKPOINT_PATH_
+
     i = 1
     flag = True
     project = 'DAE'
@@ -643,20 +684,6 @@ def train_DAE(dataset_name):
     print('validation set:', XValGlobal.shape, YValGlobal.shape)
     print('test set:', XTestGlobal.shape, YTestGlobal.shape)
 
-    # XGlobal = tf.convert_to_tensor(XGlobal)
-    # XTestGlobal = tf.convert_to_tensor(XTestGlobal)
-    # XValGlobal = tf.convert_to_tensor(XValGlobal)
-    # YGlobal = tf.convert_to_tensor(YGlobal)
-    # YTestGlobal = tf.convert_to_tensor(YTestGlobal)
-    # YValGlobal = tf.convert_to_tensor(YValGlobal)
-    #
-    # if device == '':
-    #     print("Moving data to GPU...")
-    #     XGlobal = XGlobal.gpu()
-    #     XValGlobal = XValGlobal.gpu()
-    #     XTestGlobal = XTestGlobal.gpu()
-    #     print("Data moved to GPU.")
-
     ae_hyperparameters_to_optimize = {
         "ae_activation": config['AE_ACTIVATION'],
         "ae_out_activation": config['AE_O_ACTIVATION'],
@@ -714,8 +741,15 @@ def train_DAE(dataset_name):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Description of your script')
-    parser.add_argument('--dataset', type=str, default='UNSW_NB15',
+    parser.add_argument('--dataset', type=str, default='UNSW_NB15', required=True,
                         help='dataset name choose from: "UNSW", "KDD", "CICIDS"')
-
+    parser.add_argument('--result', type=str, required=False,
+                        help='path of hyper-parameter training result table .csv file')
     args = parser.parse_args()
+
+    if args.result is not None:
+        result_path = args.result
+    else:
+        result_path = None
+
     train_DAE(args.dataset)
