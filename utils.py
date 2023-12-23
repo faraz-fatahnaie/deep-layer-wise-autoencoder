@@ -185,7 +185,7 @@ class GetEpoch(Callback):
             print('CALLBACK DOES NOT WORK!')
             return
 
-        self.stopped_epoch = epoch
+        self.stopped_epoch = epoch + 1
 
 
 if __name__ == "__main__":
