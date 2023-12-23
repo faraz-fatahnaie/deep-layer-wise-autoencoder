@@ -427,23 +427,13 @@ def train_cf(x_train, y_train, x_val, y_val, params):
                metrics=['acc'])
 
     early_stopping = EarlyStopping(monitor='val_loss',
-                                   mode='min',
+                                   mode='auto',
                                    min_delta=0.0001,
                                    patience=10,
                                    restore_best_weights=True),
     model_checkpoint = ModelCheckpoint(filepath=os.path.join(CHECKPOINT_PATH_, 'best_model.h5'),
                                        monitor='val_loss',
                                        save_best_only=True)
-
-    # best_acc_value = 1.0
-    # if config['DATASET_NAME'] == 'KDD_CUP99':
-    #     best_acc_value = None
-    # elif config['DATASET_NAME'] == 'UNSW_NB15':
-    #     best_acc_value = 0.9
-    # elif config['DATASET_NAME'] == 'CICIDS':
-    #     best_acc_value = 0.98
-    # early_stopping2 = CustomEarlyStopping(best_max_value=best_acc_value)
-    early_stopping2 = CustomEarlyStopping(best_max_value=1.0)
 
     train_start_time = time.time()
     model.fit(
@@ -454,7 +444,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         validation_data=(x_val, y_val),
         batch_size=params["batch"],
         workers=4,
-        callbacks=[early_stopping, early_stopping2, model_checkpoint]
+        callbacks=[early_stopping, model_checkpoint]
     )
     train_end_time = time.time()
 
@@ -469,7 +459,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
     precision = precision_score(y_val, Y_predicted, average='binary')
     recall = recall_score(y_val, Y_predicted, average='binary')
     f1 = f1_score(y_val, Y_predicted, average='binary')
-    epochs = early_stopping2.stopped_epoch + 1
+    epochs = EarlyStopping.stopped_epoch
 
     del x_train, x_val, y_train, y_val, Y_predicted
 
