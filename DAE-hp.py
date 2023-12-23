@@ -10,7 +10,6 @@ import tensorflow.python.keras
 from hyperopt import STATUS_OK, SparkTrials, hp, Trials, fmin, tpe
 from tensorflow import expand_dims
 
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.layers import Dense, LSTM, Bidirectional, Dropout, Flatten, Concatenate
 from tensorflow.keras.optimizers import Adam
 from sklearn import metrics
@@ -18,7 +17,7 @@ from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, r
 from tensorflow.python.client import device_lib
 
 from sklearn.model_selection import train_test_split
-from utils import parse_data, OptimizerFactory, set_seed
+from utils import parse_data, OptimizerFactory, set_seed, GetEpoch
 from layer_wise_autoencoder import partial_ae_factory
 import os
 from pathlib import Path
@@ -431,9 +430,10 @@ def train_cf(x_train, y_train, x_val, y_val, params):
                                                       min_delta=0.0001,
                                                       patience=10,
                                                       restore_best_weights=True)
-    model_checkpoint = ModelCheckpoint(filepath=os.path.join(CHECKPOINT_PATH_, 'best_model.h5'),
-                                       monitor='val_loss',
-                                       save_best_only=True)
+    model_checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=os.path.join(CHECKPOINT_PATH_, 'best_model.h5'),
+                                                          monitor='val_loss',
+                                                          save_best_only=True)
+    get_epoch = GetEpoch()
 
     train_start_time = time.time()
     history = model.fit(
@@ -444,7 +444,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         validation_data=(x_val, y_val),
         batch_size=params["batch"],
         workers=4,
-        callbacks=[early_stopping, model_checkpoint]
+        callbacks=[early_stopping, get_epoch, model_checkpoint]
     )
     train_end_time = time.time()
 
@@ -459,7 +459,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
     precision = precision_score(y_val, Y_predicted, average='binary')
     recall = recall_score(y_val, Y_predicted, average='binary')
     f1 = f1_score(y_val, Y_predicted, average='binary')
-    epochs = early_stopping.stopped_epoch
+    epochs = get_epoch.stopped_epoch
 
     del x_train, x_val, y_train, y_val, Y_predicted
 
