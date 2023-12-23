@@ -69,7 +69,6 @@ result_path = str()
 CHECKPOINT_PATH_ = str()
 
 tid = 0
-num_loaded_evals = 0
 best_loss = float('inf')
 best_val_acc = 0
 best_ae = None
@@ -343,7 +342,8 @@ def train_cf(x_train, y_train, x_val, y_val, params):
     global tid
     global best_ae
 
-    tid = num_loaded_evals + 1
+    tid += 1
+
     tf.keras.backend.clear_session()
     print(params)
     x_train = np.array(x_train)
@@ -507,16 +507,16 @@ def hyperopt_cf(params):
     global load_previous_result
     global continue_loading
     global tid
-    global num_loaded_evals
 
     if (result_path is not None) and continue_loading:
         result_table = pd.read_csv(result_path)
 
         tid += 1
         selected_row = result_table[result_table['tid'] == tid]
+        print(selected_row)
         loss_hp = selected_row['F1_val'].values[0]
         loss_hp = -loss_hp
-        if tid == len(result_table):
+        if tid == len(result_table) - 1:
             continue_loading = False
 
         if load_previous_result:
@@ -529,7 +529,6 @@ def hyperopt_cf(params):
                 writer.writeheader()
                 writer.writerows(SavedParameters)
 
-            num_loaded_evals = len(result_table)
             load_previous_result = False
 
     else:
