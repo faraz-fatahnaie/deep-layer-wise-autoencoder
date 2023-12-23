@@ -19,7 +19,7 @@ from tensorflow.python.client import device_lib
 
 from sklearn.model_selection import train_test_split
 from utils import parse_data, OptimizerFactory, set_seed
-from layer_wise_autoencoder import partial_ae_factory
+from layer_wise_autoencoder import partial_ae_factory, partial_lstm_ae_factory
 import os
 from pathlib import Path
 from configs.setting_DAE import setting_DAE
@@ -100,7 +100,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
             hidden_size)) + f'_A-{activation}_OA-{out_activation}_{loss_fn}_E{epoch}_B{batch_size}_{opt}_{method}'
 
     BASE_DIR = Path(__file__).resolve().parent
-    ae_path = os.path.join(BASE_DIR, 'trained_ae', f'{ae_filename}.keras')
+    ae_path = os.path.join(BASE_DIR, 'trained_ae', 'lstm', f'{ae_filename}.keras')
     # ae_path = Path(
     #     f'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\trained_ae\\{ae_filename}.keras')
 
@@ -118,7 +118,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
             pass
     else:
         if method == 'formal':
-            input_img = tensorflow.keras.Input(shape=(X_train.shape[1],))
+            input_img = tensorflow.keras.Input(shape=(X_train.shape[2],))
             encoded1_da = Dense(hidden_size[0], activation=params_ae['ae_activation'], name='encode1',
                                 kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
                                 bias_initializer=tf.keras.initializers.Zeros()
@@ -131,7 +131,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
                                 kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
                                 bias_initializer=tf.keras.initializers.Zeros()
                                 )(encoded2_da)
-            decoded1_da = Dense(X_train.shape[1], activation=params_ae['ae_out_activation'], name='out',
+            decoded1_da = Dense(X_train.shape[2], activation=params_ae['ae_out_activation'], name='out',
                                 kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
                                 bias_initializer=tf.keras.initializers.Zeros()
                                 )(encoded3_da)
@@ -180,18 +180,18 @@ def DAE(params_ae, method: str = 'layer-wise'):
 
         else:
             # ================= LAYER 1 =================
-            autoencoder1, encoder1 = partial_ae_factory(in_shape=X_train.shape[1],
-                                                        hidden_size=hidden_size[0],
-                                                        activation=params_ae['ae_activation'])
+            autoencoder1, encoder1 = partial_lstm_ae_factory(in_shape=X_train.shape[2],
+                                                             hidden_size=hidden_size[0],
+                                                             activation=params_ae['ae_activation'])
 
             # ================= LAYER 2 =================
-            autoencoder2, encoder2 = partial_ae_factory(in_shape=hidden_size[0],
-                                                        hidden_size=hidden_size[1],
-                                                        activation=params_ae['ae_activation'])
+            autoencoder2, encoder2 = partial_lstm_ae_factory(in_shape=hidden_size[0],
+                                                             hidden_size=hidden_size[1],
+                                                             activation=params_ae['ae_activation'])
             # ================= LAYER 3 =================
-            autoencoder3, encoder3 = partial_ae_factory(in_shape=hidden_size[1],
-                                                        hidden_size=hidden_size[2],
-                                                        activation=params_ae['ae_activation'])
+            autoencoder3, encoder3 = partial_lstm_ae_factory(in_shape=hidden_size[1],
+                                                             hidden_size=hidden_size[2],
+                                                             activation=params_ae['ae_activation'])
 
             opt_factory_ae = OptimizerFactory(opt=params_ae['ae_optimizer'],
                                               lr_schedule=config['AE_SCHEDULE'],
@@ -273,14 +273,27 @@ def DAE(params_ae, method: str = 'layer-wise'):
             pae_train_end_time = time.time()
             pae_train_elapsed_time = int(pae_train_end_time - pae_train_start_time)
 
-            input_img = tensorflow.keras.Input(shape=(X_train.shape[1],))
-            encoded1_da = Dense(hidden_size[0], activation=params_ae['ae_activation'], name='encode1')(input_img)
-            encoded2_da = Dense(hidden_size[1], activation=params_ae['ae_activation'], name='encode2')(encoded1_da)
-            encoded3_da = Dense(hidden_size[2], activation=params_ae['ae_activation'], name='encode3')(encoded2_da)
-            decoded1_da = Dense(X_train.shape[1], activation=params_ae['ae_out_activation'], name='out',
-                                kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
-                                bias_initializer=tf.keras.initializers.Zeros()
-                                )(encoded3_da)
+            input_img = tensorflow.keras.Input(shape=(1, X_train.shape[2]))
+            encoded1_da = tf.keras.layers.LSTM(hidden_size[0],
+                                               activation=params_ae['ae_activation'],
+                                               name='encode1',
+                                               return_sequences=True)(input_img)
+            encoded2_da = tf.keras.layers.LSTM(hidden_size[1],
+                                               activation=params_ae['ae_activation'],
+                                               name='encode2',
+                                               return_sequences=True)(encoded1_da)
+            encoded3_da = tf.keras.layers.LSTM(hidden_size[2],
+                                               activation=params_ae['ae_activation'],
+                                               name='encode3',
+                                               return_sequences=True)(encoded2_da)
+            decoded1_da = tf.keras.layers.LSTM(X_train.shape[2],
+                                               activation=params_ae['ae_out_activation'],
+                                               name='out',
+                                               return_sequences=True,
+                                               kernel_initializer=tf.keras.initializers.GlorotNormal(
+                                                   seed=config['SEED']),
+                                               bias_initializer=tf.keras.initializers.Zeros()
+                                               )(encoded3_da)
 
             deep_autoencoder = tf.keras.models.Model(inputs=input_img, outputs=decoded1_da)
 
@@ -431,12 +444,12 @@ def train_cf(x_train, y_train, x_val, y_val, params):
                                                       min_delta=0.0001,
                                                       patience=10,
                                                       restore_best_weights=True)
-    model_checkpoint = ModelCheckpoint(filepath=os.path.join(CHECKPOINT_PATH_, 'best_model.h5'),
-                                       monitor='val_loss',
-                                       save_best_only=True)
+    model_checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=os.path.join(CHECKPOINT_PATH_, 'best_model.h5'),
+                                                          monitor='val_loss',
+                                                          save_best_only=True)
 
     train_start_time = time.time()
-    history = model.fit(
+    model.fit(
         x_train,
         y_train,
         epochs=config["EPOCH"],
@@ -621,7 +634,7 @@ def train_DAE(dataset_name):
 
     i = 1
     flag = True
-    project = 'DAE'
+    project = 'DAE-LSTM'
     config = {}
     BASE_DIR = Path(__file__).resolve().parent
     while flag:
@@ -659,8 +672,8 @@ def train_DAE(dataset_name):
     # Generate synthetic data for testing (replace with your dataset)
     dataset_name = config['DATASET_NAME']
     base_path = Path(__file__).resolve().parent
-    train = pd.read_csv(os.path.join(base_path, 'dataset', f'{dataset_name}', 'train_binary.csv'))
-    test = pd.read_csv(os.path.join(base_path, 'dataset', f'{dataset_name}', 'test_binary.csv'))
+    train = pd.read_csv(base_path.joinpath(f'dataset\\{dataset_name}\\train_binary.csv'))
+    test = pd.read_csv(base_path.joinpath(f'dataset\\{dataset_name}\\test_binary.csv'))
 
     XGlobal, YGlobal = parse_data(train, config['DATASET_NAME'], config['CLASSIFICATION_MODE'])
     XTestGlobal, YTestGlobal = parse_data(test, config['DATASET_NAME'], config['CLASSIFICATION_MODE'])
@@ -674,6 +687,10 @@ def train_DAE(dataset_name):
                                                                 stratify=YGlobal,
                                                                 random_state=config['SEED']
                                                                 )
+
+    XGlobal = np.reshape(XGlobal, (-1, 1, XGlobal.shape[1]))
+    XValGlobal = np.reshape(XValGlobal, (-1, 1, XValGlobal.shape[1]))
+    XTestGlobal = np.reshape(XTestGlobal, (-1, 1, XTestGlobal.shape[1]))
 
     print('train set:', XGlobal.shape, YGlobal.shape)
     print('validation set:', XValGlobal.shape, YValGlobal.shape)
@@ -703,9 +720,6 @@ def train_DAE(dataset_name):
         XGlobal = best_ae.predict(XGlobal, verbose=2)
         XValGlobal = best_ae.predict(XValGlobal, verbose=2)
         XTestGlobal = best_ae.predict(XTestGlobal, verbose=2)
-        XGlobal = np.reshape(XGlobal, (-1, 1, XGlobal.shape[1]))
-        XValGlobal = np.reshape(XValGlobal, (-1, 1, XValGlobal.shape[1]))
-        XTestGlobal = np.reshape(XTestGlobal, (-1, 1, XTestGlobal.shape[1]))
 
     print('train set:', XGlobal.shape, YGlobal.shape)
     print('validation set:', XValGlobal.shape, YValGlobal.shape)
