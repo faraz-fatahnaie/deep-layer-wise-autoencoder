@@ -173,14 +173,11 @@ class OptimizerFactory:
                 return RMSprop(learning_rate=self.init_lr)
 
 
-class CustomEarlyStopping(Callback):
-    def __init__(self, monitor='acc', best_max_value=None):
-        super(CustomEarlyStopping, self).__init__()
+class GetEpoch(Callback):
+    def __init__(self, monitor='val_loss'):
+        super(GetEpoch, self).__init__()
         self.monitor = monitor
         self.stopped_epoch = int
-        self.best_weights = None
-        self.best_max_value = best_max_value
-        self.restore_best_weights = True
 
     def on_epoch_end(self, epoch, logs=None):
         current = logs.get(self.monitor)
@@ -189,14 +186,6 @@ class CustomEarlyStopping(Callback):
             return
 
         self.stopped_epoch = epoch
-        if self.best_max_value is not None:
-            if current > self.best_max_value:
-                self.stopped_epoch = epoch
-                self.best_weights = self.model.get_weights()
-                self.model.stop_training = True
-                if self.restore_best_weights and self.best_weights is not None:
-                    print("Restoring best model weights.")
-                    self.model.set_weights(self.best_weights)
 
 
 if __name__ == "__main__":
