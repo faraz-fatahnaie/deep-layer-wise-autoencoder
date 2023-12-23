@@ -18,7 +18,7 @@ from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, r
 from tensorflow.python.client import device_lib
 
 from sklearn.model_selection import train_test_split
-from utils import parse_data, result, OptimizerFactory, set_seed, CustomEarlyStopping
+from utils import parse_data, OptimizerFactory, set_seed
 from layer_wise_autoencoder import partial_ae_factory
 import os
 from pathlib import Path
@@ -426,17 +426,17 @@ def train_cf(x_train, y_train, x_val, y_val, params):
                optimizer=Adam(params["learning_rate"]),
                metrics=['acc'])
 
-    early_stopping = EarlyStopping(monitor='val_loss',
-                                   mode='auto',
-                                   min_delta=0.0001,
-                                   patience=10,
-                                   restore_best_weights=True),
+    early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
+                                                      mode='auto',
+                                                      min_delta=0.0001,
+                                                      patience=10,
+                                                      restore_best_weights=True)
     model_checkpoint = ModelCheckpoint(filepath=os.path.join(CHECKPOINT_PATH_, 'best_model.h5'),
                                        monitor='val_loss',
                                        save_best_only=True)
 
     train_start_time = time.time()
-    model.fit(
+    history = model.fit(
         x_train,
         y_train,
         epochs=config["EPOCH"],
@@ -459,7 +459,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
     precision = precision_score(y_val, Y_predicted, average='binary')
     recall = recall_score(y_val, Y_predicted, average='binary')
     f1 = f1_score(y_val, Y_predicted, average='binary')
-    epochs = EarlyStopping.stopped_epoch
+    epochs = early_stopping.stopped_epoch
 
     del x_train, x_val, y_train, y_val, Y_predicted
 
