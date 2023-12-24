@@ -23,8 +23,8 @@
     "decay": 0.5
   },
   "classifier": {
-    "name": "LSTM",
-    "unit": [16, 32, 64],
+    "name": "BILSTM",
+    "unit": [16, 32, 64, 128],
     "merge_mode": ["concat", "sum", "mul"],
     "min_dropout": 0,
     "max_dropout": 0.8,
