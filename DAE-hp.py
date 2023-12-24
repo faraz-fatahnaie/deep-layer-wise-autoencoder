@@ -422,7 +422,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         model.compile(loss='categorical_crossentropy',
                       optimizer=Adam(params["learning_rate"]),
                       metrics=['acc'])
-        trainable_params = sum([tf.size(w).numpy() for w in cf.trainable_variables])
+        trainable_params = sum([tf.size(w).numpy() for w in model.trainable_variables])
     else:
         model = cf
 
