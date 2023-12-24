@@ -38,11 +38,10 @@ class Preprocessor:
         self._save()
 
     def _read_data(self):
-        cols_to_drop = [' Destination Port']
         df = {}
         total = 0
         for idx, file in enumerate(os.listdir(self.dataset_path)):
-            df[idx] = pd.read_csv(Path(self.dataset_path).joinpath(file)).drop(cols_to_drop, axis=1)
+            df[idx] = pd.read_csv(Path(self.dataset_path).joinpath(file))
             if idx == 0:
                 self.DataFrame = pd.concat([self.DataFrame, df[idx]], axis=0)
             else:
