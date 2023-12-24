@@ -353,8 +353,8 @@ def train_cf(x_train, y_train, x_val, y_val, params):
     else:
         n_features = x_train.shape[2]
 
+    cf = tf.keras.models.Sequential()
     if config['MODEL_NAME'] == 'BILSTM':
-        cf = tf.keras.models.Sequential()
         cf.add(tensorflow.keras.Input(shape=(1, n_features)))
 
         forward_layer1 = LSTM(units=params['unit1'], return_sequences=True,
@@ -386,7 +386,6 @@ def train_cf(x_train, y_train, x_val, y_val, params):
                      ))
 
     elif config['MODEL_NAME'] == 'LSTM':
-        cf = tf.keras.models.Sequential()
         cf.add(tensorflow.keras.Input(shape=(1, n_features)))
 
         cf.add(LSTM(params['unit1'], return_sequences=True,
@@ -409,6 +408,11 @@ def train_cf(x_train, y_train, x_val, y_val, params):
                      # activity_regularizer=tf.keras.regularizers.L2(1e-5)
                      ))
 
+    trainable_params = sum([tf.size(w).numpy() for w in cf.trainable_variables])
+    cf.compile(loss='categorical_crossentropy',
+               optimizer=Adam(params["learning_rate"]),
+               metrics=['acc'])
+
     if config['AE_FINETUNE']:
         input_img = tf.keras.Input(shape=(x_train.shape[1],))
         ae_out = best_ae(input_img)
@@ -418,12 +422,9 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         model.compile(loss='categorical_crossentropy',
                       optimizer=Adam(params["learning_rate"]),
                       metrics=['acc'])
+        trainable_params = sum([tf.size(w).numpy() for w in cf.trainable_variables])
     else:
         model = cf
-
-    cf.compile(loss='categorical_crossentropy',
-               optimizer=Adam(params["learning_rate"]),
-               metrics=['acc'])
 
     early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                       mode='auto',
@@ -465,6 +466,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
 
     param = {
         "tid": tid,
+        "n_params": trainable_params,
         "epochs": epochs,
         "train_time": int(train_end_time - train_start_time),
         "unit1": params["unit1"],
