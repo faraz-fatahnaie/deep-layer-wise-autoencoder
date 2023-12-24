@@ -1,14 +1,14 @@
 import os
 
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from pathlib import Path
 
 from utils import set_seed
 
 
 class Preprocessor:
-    def __init__(self, train_path, test_path, save_path, classification_m, label_col_name):
+    def __init__(self, train_path, test_path, save_path, classification_m, label_col_name, norm_method):
         self.test_df = None
         self.train_df = None
         self.train_path = train_path
@@ -16,6 +16,7 @@ class Preprocessor:
         self.save_path = save_path
         self.classification_m = classification_m
         self.label_col_name = label_col_name
+        self.norm_method = norm_method
 
     def __getitem__(self):
         return self.train_df, self.test_df
@@ -78,7 +79,10 @@ class Preprocessor:
     def _scaling(self):
         train, test = self.train_df, self.test_df
         listContent = list(self.listNumerical)
-        scaler = MinMaxScaler()
+        if self.norm_method == 'normalization':
+            scaler = MinMaxScaler()
+        elif self.norm_method == 'standardization':
+            scaler = StandardScaler()
         scaler.fit(train[listContent].values)
         train[listContent] = scaler.transform(train[listContent])
         test[listContent] = scaler.transform(test[listContent])
@@ -129,7 +133,7 @@ if __name__ == '__main__':
     test_path = base_path.joinpath('original', 'UNSW_NB15_testing-set.csv')
     classification_m = 'binary'
 
-    preprocessor = Preprocessor(train_path, test_path, base_path, classification_m, 'label')
+    preprocessor = Preprocessor(train_path, test_path, base_path, classification_m, 'label', 'normalization')
     preprocessor.preprocess()
     train_preprocessed, test_preprocessed = preprocessor.__getitem__()
     print(train_preprocessed.head())
