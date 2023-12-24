@@ -24,12 +24,12 @@ def partial_ae_factory(in_shape, hidden_size, activation):
     return autoencoder, encoder
 
 
-def partial_lstm_ae_factory(in_shape, hidden_size):
+def partial_lstm_ae_factory(in_shape, hidden_size, activation):
     input_img = tf.keras.layers.Input(shape=(1, in_shape))
-    encoded = tf.keras.layers.LSTM(hidden_size, activation='tanh', return_sequences=True,
+    encoded = tf.keras.layers.LSTM(hidden_size, activation=activation, return_sequences=True,
                                    kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
                                    bias_initializer=tf.keras.initializers.Zeros())(input_img)
-    decoded = tf.keras.layers.LSTM(in_shape, activation='tanh', return_sequences=True,
+    decoded = tf.keras.layers.LSTM(in_shape, activation=activation, return_sequences=True,
                                    kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
                                    bias_initializer=tf.keras.initializers.Zeros())(encoded)
 
