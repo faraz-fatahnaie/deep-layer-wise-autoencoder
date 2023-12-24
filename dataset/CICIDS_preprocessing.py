@@ -1,40 +1,48 @@
-import os
-from pathlib import Path
-import pandas as pd
 import numpy as np
 
-from sklearn.preprocessing import (MinMaxScaler, LabelBinarizer)
 from sklearn.model_selection import train_test_split
-from utils import parse_data, save_dataframe, sort_columns, shuffle, set_seed
+
+import os
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from pathlib import Path
+
+from utils import set_seed
 
 
-class BuildDataFrames:
-
-    def __init__(self,
-                 dataframe=None,
-                 df_path: str = '',
-                 df_type: str = 'train',
-                 classification_mode: str = 'multi',
-                 label_feature_name: str = ' Label'):
-
-        self.df_path = df_path
-        self.df_type = df_type
-        self.classification_mode = classification_mode
-        self.label_feature_name = label_feature_name
+class Preprocessor:
+    def __init__(self, dataset_path, save_path, label_col_name, norm_method):
+        self.df_path = None
         self.DataFrame = None
-        if dataframe is not None:
-            self.DataFrame = dataframe
+        self.test_df = None
+        self.train_df = None
+        self.dataset_path = dataset_path
+        self.save_path = save_path
+        self.label_col_name = label_col_name
+        self.norm_method = norm_method
 
     def __getitem__(self):
-        return self.DataFrame
+        return self.train_df, self.test_df
 
-    def read_dataframe(self):
+    def preprocess(self):
+        self._read_data()
+        self._rename()
+        self._replace_labels()
+        self._sampling()
+        self._handle_missing()
+        self._categorize_columns()
+        self._scaling()
+        self._reorder_columns()
+        self._sort()
+        self._shuffle()
+        self._save()
 
+    def _read_data(self):
         cols_to_drop = [' Destination Port']
         df = {}
         total = 0
-        for idx, file in enumerate(os.listdir(self.df_path)):
-            df[idx] = pd.read_csv(Path(self.df_path).joinpath(file)).drop(cols_to_drop, axis=1)
+        for idx, file in enumerate(os.listdir(self.dataset_path)):
+            df[idx] = pd.read_csv(Path(self.dataset_path).joinpath(file)).drop(cols_to_drop, axis=1)
             if idx == 0:
                 self.DataFrame = pd.concat([self.DataFrame, df[idx]], axis=0)
             else:
@@ -44,133 +52,110 @@ class BuildDataFrames:
 
             df_size = len(df[idx])
             total += df_size
-        # self.DataFrame = self.DataFrame.sample(n=1000000)
+
+        print(F'TOTAL NUMBER OF SAMPLES IN AGGREGATED DATAFRAME IS: {total}')
+
+    def _rename(self):
+        self.DataFrame.rename(
+            columns={' Flow Packets/s': 'Flow_Packets',
+                     'Flow Bytes/s': 'Flow_Bytes',
+                     ' Label': str(self.label_col_name)},
+            inplace=True)
+
+    def _sampling(self):
         self.DataFrame, _ = train_test_split(self.DataFrame,
                                              test_size=1 - (1000000 / len(self.DataFrame)),
-                                             stratify=self.DataFrame.iloc[:, -1])
-        print('Total Number of Samples in Aggregated Dataframe is: ', total)
-        self.DataFrame = self.DataFrame.replace([np.inf, -np.inf], 0)
-        self.DataFrame = self.DataFrame.fillna(0)
-        train_file = os.path.join(Path(self.df_path).parent, 'cicids_describe.csv')
-        self.DataFrame.describe().T.to_csv(train_file, index=True)
-        print('reading dataset done.')
-        return self.DataFrame
+                                             stratify=self.DataFrame[self.label_col_name])
 
-    def normalization(self, min_max_scaler_object=None):
+        X = self.DataFrame.iloc[:, :-1]
+        y = self.DataFrame.iloc[:, -1]
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.9, stratify=y)
+        self.train_df = pd.concat([X_train, y_train], axis=1)
+        self.test_df = pd.concat([X_test, y_test], axis=1)
 
-        if self.df_type == 'train':
-            DataFrame = self.DataFrame
-            numeric_col_list = DataFrame.select_dtypes(include='number').columns
-            if self.classification_mode == 'binary' and self.label_feature_name in numeric_col_list:
-                numeric_col_list = numeric_col_list.drop(self.label_feature_name)
-            DataFrame_numeric_col = DataFrame[numeric_col_list].values
-            min_max_scaler = MinMaxScaler()
-            self.DataFrame[numeric_col_list] = min_max_scaler.fit_transform(DataFrame_numeric_col)
-            return min_max_scaler
+    def _categorize_columns(self):
+        self.listBinary = [
+            'Fwd PSH Flags', ' Bwd PSH Flags', ' Fwd URG Flags', ' Bwd URG Flags', 'FIN Flag Count',
+            ' SYN Flag Count', ' RST Flag Count', ' PSH Flag Count',
+            ' ACK Flag Count', ' URG Flag Count', ' CWE Flag Count', ' ECE Flag Count', 'Fwd Avg Bytes/Bulk',
+            ' Fwd Avg Packets/Bulk',
+            ' Fwd Avg Bulk Rate', ' Bwd Avg Bytes/Bulk', ' Bwd Avg Packets/Bulk', 'Bwd Avg Bulk Rate']
+        self.listNominal = []
 
-        elif self.df_type == 'test':
-            DataFrame = self.DataFrame
-            numeric_col_list = DataFrame.select_dtypes(include='number').columns
-            if self.classification_mode == 'binary' and self.label_feature_name in numeric_col_list:
-                numeric_col_list = numeric_col_list.drop(self.label_feature_name)
-            DataFrame_numeric_col = DataFrame[numeric_col_list].values
-            self.DataFrame[numeric_col_list] = min_max_scaler_object.transform(DataFrame_numeric_col)
+        columns = self.train_df.columns
+        self.listNumerical = set(columns) - set(self.listNominal) - set(self.listBinary)
+        self.listNumerical.remove(self.label_col_name)
 
-    def label_binarizing(self, label_binarizer=None):
-        if self.classification_mode == 'binary':
-            self.DataFrame[self.label_feature_name] = self.DataFrame[self.label_feature_name].apply(
-                lambda x: 1 if x != 'BENIGN' else 0)
+    def _handle_missing(self):
+        self.train_df['Flow_Bytes'].fillna(0, inplace=True)
+        self.test_df['Flow_Bytes'].fillna(0, inplace=True)
+        for col in self.train_df.columns[self.train_df.isin(['Infinity', np.inf, -np.inf]).any()]:
+            max_val = self.train_df[col].replace([np.inf, -np.inf], np.nan).max()
+            min_val = self.train_df[col].replace([np.inf, -np.inf], np.nan).min()
 
-        elif self.classification_mode == 'multi':
-            if self.df_type == 'train':
-                # create an object of label binarizer, then fit on train labels
-                LabelBinarizerObject_fittedOnTrainLabel = LabelBinarizer().fit(self.DataFrame[' Label'])
-                # transform train labels with that object
-                TrainBinarizedLabel = LabelBinarizerObject_fittedOnTrainLabel.transform(
-                    self.DataFrame[self.label_feature_name])
-                # convert transformed labels to dataframe
-                TrainBinarizedLabelDataFrame = pd.DataFrame(TrainBinarizedLabel,
-                                                            columns=LabelBinarizerObject_fittedOnTrainLabel.classes_)
-                # concatenate training set after drop 'label' with created dataframe of binarized labels
-                self.DataFrame = pd.concat(
-                    [self.DataFrame.drop([self.label_feature_name], axis=1).reset_index(drop=True),
-                     TrainBinarizedLabelDataFrame], axis=1)
+            self.train_df[col] = self.train_df[col].replace(np.inf, max_val)
+            self.train_df[col] = self.train_df[col].replace(-np.inf, min_val)
 
-                return LabelBinarizerObject_fittedOnTrainLabel
+            self.test_df[col] = self.test_df[col].replace(np.inf, max_val)
+            self.test_df[col] = self.test_df[col].replace(-np.inf, min_val)
 
-            elif self.df_type == 'test':
-                TestBinarizedLabel = label_binarizer.transform(self.DataFrame[self.label_feature_name])
-                TestBinarizedLabelDataFrame = pd.DataFrame(TestBinarizedLabel, columns=label_binarizer.classes_)
-                self.DataFrame = pd.concat(
-                    [self.DataFrame.drop([self.label_feature_name], axis=1), TestBinarizedLabelDataFrame],
-                    axis=1)
+        train_columns_with_inf = self.train_df.columns[self.train_df.isin(['Infinity', np.inf, -np.inf, np.nan]).any()]
+        test_columns_with_inf = self.test_df.columns[self.test_df.isin(['Infinity', np.inf, -np.inf, np.nan]).any()]
+        if len(train_columns_with_inf) > 0:
+            raise ValueError(F"INFINITE VALUES DETECTED IN {train_columns_with_inf} TRAIN COLUMNS.")
+        if len(test_columns_with_inf) > 0:
+            raise ValueError(F"INFINITE VALUES DETECTED IN {test_columns_with_inf} TEST COLUMNS.")
 
-    def get_df(self):
-        return self.DataFrame
+    def _scaling(self):
+        train, test = self.train_df, self.test_df
+        listContent = list(self.listNumerical)
+        if self.norm_method == 'normalization':
+            scaler = MinMaxScaler()
+        elif self.norm_method == 'standardization':
+            scaler = StandardScaler()
+        scaler.fit(train[listContent].values)
+        train[listContent] = scaler.transform(train[listContent])
+        test[listContent] = scaler.transform(test[listContent])
+        self.train_df, self.test_df = train, test
+
+    def _replace_labels(self):
+        print('LABELS OF DATASET BEFORE REPLACING LABELS\n', self.DataFrame[self.label_col_name].value_counts())
+        self.DataFrame[self.label_col_name] = self.DataFrame[self.label_col_name].apply(
+            lambda x: 1 if x != 'BENIGN' else 0)
+        print('LABELS OF DATASET AFTER REPLACING LABELS\n', self.DataFrame[self.label_col_name].value_counts())
+
+    def _reorder_columns(self):
+        self.train_df = self.train_df[[col for col in self.train_df.columns
+                                       if col != self.label_col_name] + [self.label_col_name]]
+        self.test_df = self.test_df[[col for col in self.test_df.columns
+                                     if col != self.label_col_name] + [self.label_col_name]]
+
+    def _sort(self):
+        train_cols = self.train_df.columns
+        test_sortedBasedOnTrain = pd.DataFrame(columns=train_cols)
+        for col in test_sortedBasedOnTrain:
+            test_sortedBasedOnTrain[col] = self.test_df[col]
+
+        self.test_df = test_sortedBasedOnTrain
+
+    def _shuffle(self):
+        self.train_df = self.train_df.sample(frac=1).reset_index(drop=True)
+
+    def _save(self):
+        self.train_df.to_csv(os.path.join(self.save_path, 'train_binary.csv'), index=False)
+        self.test_df.to_csv(os.path.join(self.save_path, 'test_binary.csv'), index=False)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     set_seed(0)
     base_path = Path(__file__).resolve().parent.joinpath('CICIDS')
-    dataset_path = base_path.joinpath('original')
-    classification_m = 'binary'
-    # classification_m = 'multi'
+    data_path = base_path.joinpath('original')
 
-    # =========== TRAIN DATAFRAME PREPROCESSING ===========
-    preprocess_df = BuildDataFrames(df_path=str(dataset_path), df_type='train',
-                                    classification_mode=classification_m)
-    df = preprocess_df.read_dataframe()
-    print(df[' Label'].value_counts())
-    X = df.iloc[:, :-1]
-    y = df.iloc[:, -1]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.9, stratify=y)
-    train = pd.concat([X_train, y_train], axis=1)
-    test = pd.concat([X_test, y_test], axis=1)
-    print('sampling and splitting done.')
-    del df
-    del preprocess_df
-
-    preprocess_train = BuildDataFrames(dataframe=train, df_type='train', classification_mode=classification_m)
-    if classification_m == 'binary':
-        preprocess_train.label_binarizing()
-    else:
-        label_binarizer_object = preprocess_train.label_binarizing()
-    min_max_scaler_obj = preprocess_train.normalization()
-    train_tosave = preprocess_train.__getitem__()
-
-    # =========== TEST DATAFRAME PREPROCESSING ===========
-    preprocess_test = BuildDataFrames(dataframe=test, df_type='test', classification_mode=classification_m)
-    preprocess_test.normalization(min_max_scaler_object=min_max_scaler_obj)
-    if classification_m == 'binary':
-        preprocess_test.label_binarizing()
-    else:
-        preprocess_test.label_binarizing(label_binarizer=label_binarizer_object)
-    test_tosave = preprocess_test.__getitem__()
-
-    # =========== CHECKING ===========
-    diff_test_train = list(set(test_tosave.columns) - set(train_tosave.columns))
-    diff_train_test = list(set(train_tosave.columns) - set(test_tosave.columns))
-    print('CHECKING => these should be two EMPTY lists:', diff_train_test, diff_test_train)
-
-    # =========== LABEL BINARIZING FOR MULTI-CLASSIFICATION MODE ===========
-    if classification_m == 'multi':
-        train_tosave, label_binarizer_object = preprocess_train.label_binarizing()
-        test_tosave = preprocess_test.label_binarizing(label_binarizer=label_binarizer_object)
-
-    # =========== COLUMNS ORDER EQUALIZATION FOR FURTHER PICTURE FORMATTING ===========
-    train_sorted, test_sorted = sort_columns(train_tosave, test_tosave, ' Label')
-    print(train_sorted[train_sorted.columns[-1]].value_counts())
-    print(test_sorted[test_sorted.columns[-1]].value_counts())
-
-    # =========== SHUFFLE TRAINING SET ===========
-    train_tosave = shuffle(train_tosave)
-
-    # =========== SAVE RESULTS ===========
-    save_dataframe(train_tosave, base_path, 'train', classification_m)
-    save_dataframe(test_tosave, base_path, 'test', classification_m)
-
-    X, y = parse_data(train_tosave, dataset_name='CICIDS', classification_mode=classification_m)
-    print(X.shape, y.shape)
-
-    X, y = parse_data(test_tosave, dataset_name='CICIDS', classification_mode=classification_m)
-    print(X.shape, y.shape)
+    preprocessor = Preprocessor(dataset_path=data_path,
+                                save_path=base_path,
+                                label_col_name='classification',
+                                norm_method='normalization')
+    preprocessor.preprocess()
+    train_preprocessed, test_preprocessed = preprocessor.__getitem__()
+    print(train_preprocessed.head())
+    print(test_preprocessed.head())
