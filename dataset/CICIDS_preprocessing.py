@@ -122,6 +122,7 @@ class Preprocessor:
         self.DataFrame[self.label_col_name] = self.DataFrame[self.label_col_name].apply(
             lambda x: 1 if x != 'BENIGN' else 0)
         print('LABELS OF DATASET AFTER REPLACING LABELS\n', self.DataFrame[self.label_col_name].value_counts())
+        self.DataFrame[self.label_col_name] = self.DataFrame[self.label_col_name].astype('uint8')
 
     def _reorder_columns(self):
         self.train_df = self.train_df[[col for col in self.train_df.columns

@@ -145,25 +145,24 @@ class BuildDataFrames:
 
     def label_binarizing(self):
         if self.classification_mode == 'multi':
-            # create an object of label binarizer, then fit on train labels
-            LabelBinarizerObject_fittedOnTrainLabel = LabelBinarizer().fit(self.train['label'])
-            # transform train labels with that object
-            TrainBinarizedLabel = LabelBinarizerObject_fittedOnTrainLabel.transform(self.train['label'])
-            # convert transformed labels to dataframe
+            label_encoder = LabelBinarizer().fit(self.train[self.label_col_name])
+            TrainBinarizedLabel = label_encoder.transform(self.train[self.label_col_name])
             TrainBinarizedLabelDataFrame = pd.DataFrame(TrainBinarizedLabel,
-                                                        columns=LabelBinarizerObject_fittedOnTrainLabel.classes_)
-            # concatenate training set after drop 'label' with created dataframe of binarized labels
-            self.train = pd.concat([self.train.drop(['label'], axis=1), TrainBinarizedLabelDataFrame], axis=1)
+                                                        columns=label_encoder.classes_)
+            self.train = pd.concat([self.train.drop([self.label_col_name], axis=1),
+                                    TrainBinarizedLabelDataFrame], axis=1)
 
-            TestBinarizedLabel = LabelBinarizerObject_fittedOnTrainLabel.transform(self.test['label'])
+            TestBinarizedLabel = label_encoder.transform(self.test[self.label_col_name])
             TestBinarizedLabelDataFrame = pd.DataFrame(TestBinarizedLabel,
-                                                       columns=LabelBinarizerObject_fittedOnTrainLabel.classes_)
-            self.test = pd.concat([self.test.drop(['label'], axis=1), TestBinarizedLabelDataFrame], axis=1)
+                                                       columns=label_encoder.classes_)
+            self.test = pd.concat([self.test.drop([self.label_col_name], axis=1), TestBinarizedLabelDataFrame], axis=1)
 
         elif self.classification_mode == 'binary':
             label_mapping = {'normal.': 0, 'attack.': 1}
-            self.train['label'] = self.train['label'].map(label_mapping)
-            self.test['label'] = self.test['label'].map(label_mapping)
+            self.train[self.label_col_name] = self.train[self.label_col_name].map(label_mapping)
+            self.test[self.label_col_name] = self.test[self.label_col_name].map(label_mapping)
+            self.train[self.label_col_name] = self.train[self.label_col_name].astype('uint8')
+            self.test[self.label_col_name] = self.test[self.label_col_name].astype('uint8')
 
     def sort_columns(self):
         train_cols = self.train.columns
