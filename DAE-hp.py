@@ -508,7 +508,7 @@ def hyperopt_cf(params):
         print(selected_row)
         loss_hp = selected_row['F1_val'].values[0]
         loss_hp = -loss_hp
-        if tid == len(result_table) - 1:
+        if tid == len(result_table):
             continue_loading = False
 
         if load_previous_result:
