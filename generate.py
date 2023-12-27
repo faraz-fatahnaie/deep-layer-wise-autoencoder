@@ -7,6 +7,9 @@ from tensorflow.python.client.session import InteractiveSession
 
 from configs.setting import setting
 
+from utils import set_seed
+
+set_seed(0)
 
 config = tf.compat.v1.ConfigProto()
 config.gpu_options.allow_growth = True  # dynamically grow the memory used on the GPU

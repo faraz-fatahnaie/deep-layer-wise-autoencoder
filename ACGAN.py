@@ -27,6 +27,10 @@ from configs.setting import setting
 from utils import parse_data
 # from Dataset2Image.main import deepinsight
 
+from utils import set_seed
+
+set_seed(0)
+
 
 def generator(inputs,
               image_size,

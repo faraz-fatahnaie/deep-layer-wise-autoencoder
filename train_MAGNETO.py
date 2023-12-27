@@ -274,7 +274,11 @@ def train_MAGNETO():
                                    "epoch": 150}
 
     trials = Trials()
-    fmin(hyperopt_fcn, hyperparameters_to_optimize, trials=trials, algo=tpe.suggest, max_evals=50)
+    fmin(hyperopt_fcn, hyperparameters_to_optimize,
+         trials=trials,
+         algo=tpe.suggest,
+         max_evals=30,
+         rstate=np.random.default_rng(0))
     print('done')
 
 
