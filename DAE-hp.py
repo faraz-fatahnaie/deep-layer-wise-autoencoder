@@ -6,9 +6,10 @@ from itertools import product
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import tensorflow.python.keras
 from hyperopt import STATUS_OK, SparkTrials, hp, Trials, fmin, tpe
 from tensorflow import expand_dims
+
+from tensorflow.python.keras.layers.recurrent_v2 import LSTM
 
 from tensorflow.keras.layers import Dense, LSTM, Bidirectional, Dropout, Flatten, Concatenate
 from tensorflow.keras.optimizers import Adam
@@ -27,8 +28,8 @@ import gc
 
 # tf.compat.v1.disable_eager_execution()
 # os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-tf.config.set_visible_devices([], 'GPU')
-tf.config.set_visible_devices(tf.config.list_physical_devices('CPU'), 'CPU')
+# tf.config.set_visible_devices([], 'GPU')
+# tf.config.set_visible_devices(tf.config.list_physical_devices('CPU'), 'CPU')
 # print(device_lib.list_local_devices())
 # gpus = tf.config.list_physical_devices('GPU')
 # device = '/GPU:0' if tf.config.list_physical_devices('GPU') else '/CPU:0'
@@ -117,7 +118,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
             pass
     else:
         if method == 'formal':
-            input_img = tensorflow.keras.Input(shape=(X_train.shape[1],))
+            input_img = tf.keras.Input(shape=(X_train.shape[1],))
             encoded1_da = Dense(hidden_size[0], activation=params_ae['ae_activation'], name='encode1',
                                 kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
                                 bias_initializer=tf.keras.initializers.Zeros()
@@ -272,7 +273,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
             pae_train_end_time = time.time()
             pae_train_elapsed_time = int(pae_train_end_time - pae_train_start_time)
 
-            input_img = tensorflow.keras.Input(shape=(X_train.shape[1],))
+            input_img = tf.keras.Input(shape=(X_train.shape[1],))
             encoded1_da = Dense(hidden_size[0], activation=params_ae['ae_activation'], name='encode1')(input_img)
             encoded2_da = Dense(hidden_size[1], activation=params_ae['ae_activation'], name='encode2')(encoded1_da)
             encoded3_da = Dense(hidden_size[2], activation=params_ae['ae_activation'], name='encode3')(encoded2_da)
@@ -355,21 +356,25 @@ def train_cf(x_train, y_train, x_val, y_val, params):
 
     cf = tf.keras.models.Sequential()
     if config['MODEL_NAME'] == 'BILSTM':
-        cf.add(tensorflow.keras.Input(shape=(1, n_features)))
+        cf.add(tf.keras.Input(shape=(1, n_features)))
 
-        forward_layer1 = LSTM(units=params['unit1'], return_sequences=True,
-                              kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+        forward_layer1 = LSTM(units=params['unit1'], return_sequences=True,  use_bias=True, unroll=True,
+                              kernel_initializer=tf.keras.initializers.GlorotNormal(
+                                  seed=config['SEED']),
                               bias_initializer=tf.keras.initializers.Zeros())
-        backward_layer1 = LSTM(units=params['unit1'], return_sequences=True, go_backwards=True,
-                               kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+        backward_layer1 = LSTM(units=params['unit1'], return_sequences=True, go_backwards=True, unroll=True,
+                               kernel_initializer=tf.keras.initializers.GlorotNormal(
+                                   seed=config['SEED']),
                                bias_initializer=tf.keras.initializers.Zeros())
         cf.add(Bidirectional(forward_layer1, backward_layer=backward_layer1, merge_mode=params['merge_mode1']))
 
-        forward_layer2 = LSTM(units=params['unit2'], return_sequences=True,
-                              kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+        forward_layer2 = LSTM(units=params['unit2'], use_bias=True, unroll=True,
+                              kernel_initializer=tf.keras.initializers.GlorotNormal(
+                                  seed=config['SEED']),
                               bias_initializer=tf.keras.initializers.Zeros())
-        backward_layer2 = LSTM(units=params['unit2'], return_sequences=True, go_backwards=True,
-                               kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+        backward_layer2 = LSTM(units=params['unit2'], go_backwards=True, unroll=True,
+                               kernel_initializer=tf.keras.initializers.GlorotNormal(
+                                   seed=config['SEED']),
                                bias_initializer=tf.keras.initializers.Zeros())
         cf.add(Bidirectional(forward_layer2, backward_layer=backward_layer2, merge_mode=params['merge_mode2']))
 
@@ -386,7 +391,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
                      ))
 
     elif config['MODEL_NAME'] == 'LSTM':
-        cf.add(tensorflow.keras.Input(shape=(1, n_features)))
+        cf.add(tf.keras.Input(shape=(1, n_features)))
 
         cf.add(LSTM(params['unit1'], return_sequences=True,
                     kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
