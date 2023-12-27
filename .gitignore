@@ -1,6 +1,5 @@
 .idea
 session*
-archive
 trained_ae*
 dataset/NSL_KDD/*
 dataset/UNSW_NB15/*
