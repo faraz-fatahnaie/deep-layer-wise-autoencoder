@@ -149,7 +149,7 @@ def DAE(params_ae, method: str = 'layer-wise'):
                                        )
 
         for i in range(config['AE_N_LAYER'] - 1):
-            print(f'=============== LAYER {i+1} ===============')
+            print(f'=============== LAYER {i+2} ===============')
             new_layer = tf.keras.layers.Dense(params_ae["ae_unit"], activation=params_ae['ae_activation'],
                                               kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
                                               bias_initializer=tf.keras.initializers.Zeros())(
@@ -200,6 +200,37 @@ def DAE(params_ae, method: str = 'layer-wise'):
                               "ae_unit": params_ae['ae_unit'],
                               "train_time": train_time
                               }
+
+
+def hyperopt_ae(params_ae, method):
+    global SavedParametersAE
+    global best_loss
+    global best_ae
+    global best_params
+
+    ae, param = DAE(params_ae, method)
+
+    SavedParametersAE.append(param)
+    # Save model
+    if SavedParametersAE[-1]["val_loss"] < best_loss:
+        print("new saved model:" + str(SavedParametersAE[-1]))
+        best_ae = ae
+        best_params = param
+        ae.save(os.path.join(SAVE_PATH_, Name.replace(".csv", "ae_model.h5")))
+        del ae
+        best_loss = SavedParametersAE[-1]["val_loss"]
+
+    SavedParametersAE = sorted(SavedParametersAE, key=lambda i: i['val_loss'])
+
+    try:
+        with open((os.path.join(SAVE_PATH_, 'best_result_ae.csv')), 'w', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=SavedParametersAE[0].keys())
+            writer.writeheader()
+            writer.writerows(SavedParametersAE)
+    except IOError:
+        print("I/O error")
+    gc.collect()
+    # return {'loss': val["loss"], 'status': STATUS_OK}
 
 
 def train_cf(x_train, y_train, x_val, y_val, params):
@@ -403,37 +434,6 @@ def hyperopt_cf(params):
 
     gc.collect()
     return {'loss': -val["F1_val"], 'status': STATUS_OK}
-
-
-def hyperopt_ae(params_ae, method):
-    global SavedParametersAE
-    global best_loss
-    global best_ae
-    global best_params
-
-    ae, param = DAE(params_ae, method)
-
-    SavedParametersAE.append(param)
-    # Save model
-    if SavedParametersAE[-1]["val_loss"] < best_loss:
-        print("new saved model:" + str(SavedParametersAE[-1]))
-        best_ae = ae
-        best_params = param
-        ae.save(os.path.join(SAVE_PATH_, Name.replace(".csv", "ae_model.h5")))
-        del ae
-        best_loss = SavedParametersAE[-1]["val_loss"]
-
-    SavedParametersAE = sorted(SavedParametersAE, key=lambda i: i['val_loss'])
-
-    try:
-        with open((os.path.join(SAVE_PATH_, 'best_result_ae.csv')), 'w', newline='') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=SavedParametersAE[0].keys())
-            writer.writeheader()
-            writer.writerows(SavedParametersAE)
-    except IOError:
-        print("I/O error")
-    gc.collect()
-    # return {'loss': val["loss"], 'status': STATUS_OK}
 
 
 def train_DAE(dataset_name):
