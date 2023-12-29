@@ -18,7 +18,7 @@ from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, r
 from tensorflow.python.client import device_lib
 
 from sklearn.model_selection import train_test_split
-from utils import parse_data, OptimizerFactory, set_seed, GetEpoch
+from utils import parse_data, OptimizerFactory, set_seed, GetEpoch, result
 from layer_wise_autoencoder import partial_ae_factory
 import os
 from pathlib import Path
@@ -356,41 +356,33 @@ def train_cf(x_train, y_train, x_val, y_val, params):
 
     cf = tf.keras.models.Sequential()
     if config['MODEL_NAME'] == 'BILSTM':
+
         cf.add(tf.keras.Input(shape=(1, n_features)))
 
-        forward_layer1 = LSTM(units=params['unit1'], return_sequences=True,  use_bias=True, unroll=True,
-                              kernel_initializer=tf.keras.initializers.GlorotNormal(
-                                  seed=config['SEED']),
-                              bias_initializer=tf.keras.initializers.Zeros())
-        backward_layer1 = LSTM(units=params['unit1'], return_sequences=True, go_backwards=True, unroll=True,
-                               kernel_initializer=tf.keras.initializers.GlorotNormal(
-                                   seed=config['SEED']),
-                               bias_initializer=tf.keras.initializers.Zeros())
-        cf.add(Bidirectional(forward_layer1, backward_layer=backward_layer1, merge_mode=params['merge_mode1']))
-
-        # forward_layer2 = LSTM(units=params['unit2'], return_sequences=True, use_bias=True, unroll=True,
-        #                       kernel_initializer=tf.keras.initializers.GlorotNormal(
-        #                           seed=config['SEED']),
-        #                       bias_initializer=tf.keras.initializers.Zeros())
-        # backward_layer2 = LSTM(units=params['unit2'], return_sequences=True, go_backwards=True, unroll=True,
-        #                        kernel_initializer=tf.keras.initializers.GlorotNormal(
-        #                            seed=config['SEED']),
-        #                        bias_initializer=tf.keras.initializers.Zeros())
-        # cf.add(Bidirectional(forward_layer2, backward_layer=backward_layer2, merge_mode=params['merge_mode2']))
-
-        forward_layer3 = LSTM(units=params['unit3'], use_bias=True, unroll=True,
-                              kernel_initializer=tf.keras.initializers.GlorotNormal(
-                                  seed=config['SEED']),
-                              bias_initializer=tf.keras.initializers.Zeros())
-        backward_layer3 = LSTM(units=params['unit3'], go_backwards=True, unroll=True,
-                               kernel_initializer=tf.keras.initializers.GlorotNormal(
-                                   seed=config['SEED']),
-                               bias_initializer=tf.keras.initializers.Zeros())
-        cf.add(Bidirectional(forward_layer3, backward_layer=backward_layer3, merge_mode=params['merge_mode3']))
+        for n in range(config['N_LAYER']):
+            if n == config['N_LAYER'] - 1:
+                forward_layer = LSTM(units=params[f'unit{n + 1}'], use_bias=True, unroll=True,
+                                     kernel_initializer=tf.keras.initializers.GlorotNormal(
+                                         seed=config['SEED']),
+                                     bias_initializer=tf.keras.initializers.Zeros())
+                backward_layer = LSTM(units=params[f'unit{n + 1}'], go_backwards=True,
+                                      unroll=True,
+                                      kernel_initializer=tf.keras.initializers.GlorotNormal(
+                                          seed=config['SEED']),
+                                      bias_initializer=tf.keras.initializers.Zeros())
+            else:
+                forward_layer = LSTM(units=params[f'unit{n + 1}'], return_sequences=True, use_bias=True, unroll=True,
+                                     kernel_initializer=tf.keras.initializers.GlorotNormal(
+                                         seed=config['SEED']),
+                                     bias_initializer=tf.keras.initializers.Zeros())
+                backward_layer = LSTM(units=params[f'unit{n + 1}'], return_sequences=True, go_backwards=True,
+                                      unroll=True,
+                                      kernel_initializer=tf.keras.initializers.GlorotNormal(
+                                          seed=config['SEED']),
+                                      bias_initializer=tf.keras.initializers.Zeros())
+            cf.add(Bidirectional(forward_layer, backward_layer=backward_layer, merge_mode=params[f'merge_mode{n+1}']))
 
         cf.add(Dropout(params['dropout']))
-
-        cf.add(Flatten())
         cf.add(Dense(y_train.shape[1],
                      activation="softmax",
                      kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
@@ -401,19 +393,20 @@ def train_cf(x_train, y_train, x_val, y_val, params):
                      ))
 
     elif config['MODEL_NAME'] == 'LSTM':
+
         cf.add(tf.keras.Input(shape=(1, n_features)))
 
-        cf.add(LSTM(params['unit1'], return_sequences=True,
-                    kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
-                    bias_initializer=tf.keras.initializers.Zeros()))
-
-        cf.add(LSTM(params['unit2'], return_sequences=True,
-                    kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
-                    bias_initializer=tf.keras.initializers.Zeros()))
+        for n in range(config['N_LAYER']):
+            if n == config['N_LAYER'] - 1:
+                cf.add(LSTM(params[f'unit{n+1}'], return_sequences=True,
+                            kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+                            bias_initializer=tf.keras.initializers.Zeros()))
+            else:
+                cf.add(LSTM(params[f'unit{n + 1}'],
+                            kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
+                            bias_initializer=tf.keras.initializers.Zeros()))
 
         cf.add(Dropout(params['dropout']))
-
-        cf.add(Flatten())
         cf.add(Dense(y_train.shape[1],
                      activation="softmax",
                      kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
@@ -470,11 +463,8 @@ def train_cf(x_train, y_train, x_val, y_val, params):
     y_val = np.argmax(y_val, axis=1)
     Y_predicted = np.argmax(Y_predicted, axis=1)
 
-    cf = confusion_matrix(y_val, Y_predicted)
-    acc = accuracy_score(y_val, Y_predicted)
-    precision = precision_score(y_val, Y_predicted, average='binary')
-    recall = recall_score(y_val, Y_predicted, average='binary')
-    f1 = f1_score(y_val, Y_predicted, average='binary')
+    cm_val = confusion_matrix(y_val, Y_predicted)
+    results_val = result(cm_val)
     epochs = get_epoch.stopped_epoch
 
     del x_train, x_val, y_train, y_val, Y_predicted
@@ -484,26 +474,23 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         "n_params": trainable_params,
         "epochs": epochs,
         "train_time": int(train_end_time - train_start_time),
-        "unit1": params["unit1"],
-        "unit2": params["unit2"],
-        # "unit3": params["unit3"],
         "learning_rate": params["learning_rate"],
         "batch": params["batch"],
         "dropout": params["dropout"],
-        "TP_val": cf[0][0],
-        "FP_val": cf[0][1],
-        "TN_val": cf[1][1],
-        "FN_val": cf[1][0],
-        "OA_val": acc,
-        "P_val": precision,
-        "R_val": recall,
-        "F1_val": f1,
+        "TP_val": cm_val[0][0],
+        "FP_val": cm_val[0][1],
+        "TN_val": cm_val[1][1],
+        "FN_val": cm_val[1][0],
+        "OA_val": results_val['OA'],
+        "P_val": results_val['P'],
+        "R_val": results_val['R'],
+        "F1_val": results_val['F1'],
+        "FAR_val": results_val['FAR'],
     }
-
-    if config['MODEL_NAME'] == 'BILSTM':
-        param["merge_mode1"] = params['merge_mode1']
-        param["merge_mode2"] = params['merge_mode2']
-        # param["merge_mode3"] = params['merge_mode3']
+    for n in range(config["N_LAYER"]):
+        param[f'unit{n + 1}'] = params[f'unit{n + 1}']
+        if config['MODEL_NAME'] == 'BILSTM':
+            param[f'merge_mode{n + 1}'] = params[f'merge_mode{n + 1}']
 
     return model, param
 
@@ -551,7 +538,8 @@ def hyperopt_cf(params):
 
         y_predicted = np.argmax(y_predicted, axis=1)
         YTestGlobal_temp = np.argmax(YTestGlobal, axis=1)
-        cm = confusion_matrix(YTestGlobal_temp, y_predicted)
+        cm_test = confusion_matrix(YTestGlobal_temp, y_predicted)
+        results_test = result(cm_test)
 
         tf.keras.backend.clear_session()
 
@@ -559,14 +547,15 @@ def hyperopt_cf(params):
 
         SavedParameters[-1].update({
             "test_time": int(test_elapsed_time),
-            "TP_test": cm[0][0],
-            "FP_test": cm[0][1],
-            "FN_test": cm[1][0],
-            "TN_test": cm[1][1],
-            "OA_test": metrics.accuracy_score(YTestGlobal_temp, y_predicted),
-            "P_test": metrics.precision_score(YTestGlobal_temp, y_predicted, average='binary'),
-            "R_test": metrics.recall_score(YTestGlobal_temp, y_predicted, average='binary'),
-            "F1_test": metrics.f1_score(YTestGlobal_temp, y_predicted, average='binary'),
+            "TP_test": cm_test[0][0],
+            "FP_test": cm_test[0][1],
+            "FN_test": cm_test[1][0],
+            "TN_test": cm_test[1][1],
+            "OA_test": results_test['OA'],
+            "P_test": results_test['P'],
+            "R_test": results_test['R'],
+            "F1_test": results_test['F1'],
+            "FAR_test": results_test['FAR'],
         })
 
         # Save model
@@ -732,18 +721,15 @@ def train_DAE(dataset_name):
     tf.keras.backend.clear_session()
 
     cf_hyperparameters = {
-        "unit1": hp.choice("unit1", config['UNIT']),
-        "unit2": hp.choice("unit2", config['UNIT']),
-        # "unit3": hp.choice("unit3", config['UNIT']),
         "batch": hp.choice("batch", config['BATCH']),
         # "epoch": hp.choice("epoch", config['EPOCH']),
         'dropout': hp.uniform("dropout", config['MIN_DROPOUT'], config['MAX_DROPOUT']),
         "learning_rate": hp.uniform("learning_rate", config['MIN_LR'], config['MAX_LR'])
     }
-    if config['MODEL_NAME'] == 'BILSTM':
-        cf_hyperparameters['merge_mode1'] = hp.choice("merge_mode1", config['MERGE_MODE'])
-        cf_hyperparameters['merge_mode2'] = hp.choice("merge_mode2", config['MERGE_MODE'])
-        # cf_hyperparameters['merge_mode3'] = hp.choice("merge_mode3", config['MERGE_MODE'])
+    for n in range(config["N_LAYER"]):
+        cf_hyperparameters[f'unit{n + 1}'] = hp.choice(f'unit{n + 1}', config['UNIT'])
+        if config['MODEL_NAME'] == 'BILSTM':
+            cf_hyperparameters[f'merge_mode{n + 1}'] = hp.choice(f'merge_mode{n + 1}', config['MERGE_MODE'])
 
     trials = Trials()
     # spark_trials = SparkTrials()

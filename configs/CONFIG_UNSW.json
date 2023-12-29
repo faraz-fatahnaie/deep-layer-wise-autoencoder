@@ -23,9 +23,10 @@
     "decay": 0.5
   },
   "classifier": {
-    "name": "LSTM",
+    "name": "BILSTM",
+    "n_layer": 3,
     "unit": [16, 32, 64, 128],
-    "merge_mode": ["concat", "sum", "mul"],
+    "merge_mode": ["concat"],
     "min_dropout": 0,
     "max_dropout": 0.8,
     "batch": [32, 64, 128],
@@ -39,6 +40,6 @@
       "min_delta": 0.0001,
       "patience": 10
     },
-    "max_evals": 50
+    "max_evals": 30
   }
 }
