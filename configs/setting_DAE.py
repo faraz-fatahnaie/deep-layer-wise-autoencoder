@@ -32,6 +32,7 @@ def setting_DAE(config_file: json = None, project: str = 'DAE'):
     config['AE_DECAY'] = config_file['autoencoder']['decay']
 
     config['MODEL_NAME'] = config_file['classifier']['name']
+    config['N_LAYER'] = config_file['classifier']['n_layer']
     config['UNIT'] = config_file['classifier']['unit']
     config['MERGE_MODE'] = config_file['classifier']['merge_mode']
     config['MIN_DROPOUT'] = config_file['classifier']['min_dropout']
