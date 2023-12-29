@@ -368,15 +368,25 @@ def train_cf(x_train, y_train, x_val, y_val, params):
                                bias_initializer=tf.keras.initializers.Zeros())
         cf.add(Bidirectional(forward_layer1, backward_layer=backward_layer1, merge_mode=params['merge_mode1']))
 
-        forward_layer2 = LSTM(units=params['unit2'], use_bias=True, unroll=True,
+        # forward_layer2 = LSTM(units=params['unit2'], return_sequences=True, use_bias=True, unroll=True,
+        #                       kernel_initializer=tf.keras.initializers.GlorotNormal(
+        #                           seed=config['SEED']),
+        #                       bias_initializer=tf.keras.initializers.Zeros())
+        # backward_layer2 = LSTM(units=params['unit2'], return_sequences=True, go_backwards=True, unroll=True,
+        #                        kernel_initializer=tf.keras.initializers.GlorotNormal(
+        #                            seed=config['SEED']),
+        #                        bias_initializer=tf.keras.initializers.Zeros())
+        # cf.add(Bidirectional(forward_layer2, backward_layer=backward_layer2, merge_mode=params['merge_mode2']))
+
+        forward_layer3 = LSTM(units=params['unit3'], use_bias=True, unroll=True,
                               kernel_initializer=tf.keras.initializers.GlorotNormal(
                                   seed=config['SEED']),
                               bias_initializer=tf.keras.initializers.Zeros())
-        backward_layer2 = LSTM(units=params['unit2'], go_backwards=True, unroll=True,
+        backward_layer3 = LSTM(units=params['unit3'], go_backwards=True, unroll=True,
                                kernel_initializer=tf.keras.initializers.GlorotNormal(
                                    seed=config['SEED']),
                                bias_initializer=tf.keras.initializers.Zeros())
-        cf.add(Bidirectional(forward_layer2, backward_layer=backward_layer2, merge_mode=params['merge_mode2']))
+        cf.add(Bidirectional(forward_layer3, backward_layer=backward_layer3, merge_mode=params['merge_mode3']))
 
         cf.add(Dropout(params['dropout']))
 
@@ -476,6 +486,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
         "train_time": int(train_end_time - train_start_time),
         "unit1": params["unit1"],
         "unit2": params["unit2"],
+        # "unit3": params["unit3"],
         "learning_rate": params["learning_rate"],
         "batch": params["batch"],
         "dropout": params["dropout"],
@@ -492,6 +503,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
     if config['MODEL_NAME'] == 'BILSTM':
         param["merge_mode1"] = params['merge_mode1']
         param["merge_mode2"] = params['merge_mode2']
+        # param["merge_mode3"] = params['merge_mode3']
 
     return model, param
 
@@ -722,6 +734,7 @@ def train_DAE(dataset_name):
     cf_hyperparameters = {
         "unit1": hp.choice("unit1", config['UNIT']),
         "unit2": hp.choice("unit2", config['UNIT']),
+        # "unit3": hp.choice("unit3", config['UNIT']),
         "batch": hp.choice("batch", config['BATCH']),
         # "epoch": hp.choice("epoch", config['EPOCH']),
         'dropout': hp.uniform("dropout", config['MIN_DROPOUT'], config['MAX_DROPOUT']),
@@ -730,6 +743,7 @@ def train_DAE(dataset_name):
     if config['MODEL_NAME'] == 'BILSTM':
         cf_hyperparameters['merge_mode1'] = hp.choice("merge_mode1", config['MERGE_MODE'])
         cf_hyperparameters['merge_mode2'] = hp.choice("merge_mode2", config['MERGE_MODE'])
+        # cf_hyperparameters['merge_mode3'] = hp.choice("merge_mode3", config['MERGE_MODE'])
 
     trials = Trials()
     # spark_trials = SparkTrials()
