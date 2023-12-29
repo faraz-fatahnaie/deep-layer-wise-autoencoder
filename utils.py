@@ -40,22 +40,17 @@ def parse_data(df, dataset_name: str, classification_mode: str, mode: str = 'np'
 
 def result(cm):
     tp = cm[0][0]  # normal as normal
-    fp = cm[0][1]  # normal predicted attack
-    fn = cm[1][0]  # attack predicted normal
+    fp = cm[0][1]  # normal predicted as attack
+    fn = cm[1][0]  # attack predicted as normal
     tn = cm[1][1]  # attack as attack
-    attacks = tn + fn
-    normals = fp + tp
-    print('ATTACKS SAMPLES', attacks)
-    print('NORMAL SAMPLES', normals)
 
-    OA = (tp + tn) / (attacks + normals)
-    AA = ((tp / normals) + (tn / attacks)) / 2
+    OA = (tp + tn) / (tn + fn + fp + tp)
     P = tp / (tp + fp)
     R = tp / (tp + fn)
     F1 = 2 * ((P * R) / (P + R))
     FAR = fn / (tn + fn)
-    TPR = tp / (tp + fn)
-    return [OA, AA, P, R, F1, FAR, TPR]
+
+    return {"OA": OA, "P": P, "R": R, "F1": F1, "FAR": FAR}
 
 
 def set_seed(seed):
@@ -163,7 +158,6 @@ class OptimizerFactory:
             if self.lr_schedule:
                 return SGD(self.lr_scheduler())
             else:
-                # return SGD(learning_rate=5, decay=0.5, momentum=.85, nesterov=True)
                 return SGD(learning_rate=0.1, decay=0.1, momentum=.95, nesterov=True)
 
         elif self.opt == 'rmsprop':
@@ -182,14 +176,25 @@ class GetEpoch(Callback):
     def on_epoch_end(self, epoch, logs=None):
         current = logs.get(self.monitor)
         if current is None:
-            print('CALLBACK DOES NOT WORK!')
+            print('CALLBACK DOES NOT WORK PROPERLY!')
             return
 
         self.stopped_epoch = epoch + 1
 
 
 if __name__ == "__main__":
-    df_path = 'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\dataset\\' \
-              'KDD_CUP99\\Train_standard.csv'
-    df = pd.read_csv(df_path)
-    shuffle_dataframe(df)
+    # df_path = 'C:\\Users\\Faraz\\PycharmProjects\\deep-layer-wise-autoencoder\\dataset\\' \
+    #           'KDD_CUP99\\Train_standard.csv'
+    # df = pd.read_csv(df_path)
+    # shuffle_dataframe(df)
+
+    TP = 715402
+
+    FP = 7302
+
+    FN = 5273
+
+    TN = 172023
+
+    cm = [[TP, FP], [FN, TN]]
+    result(cm)
