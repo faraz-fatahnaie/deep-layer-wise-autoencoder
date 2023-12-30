@@ -38,7 +38,7 @@ def parse_data(df, dataset_name: str, classification_mode: str, mode: str = 'np'
         return dt, lb
 
 
-def result(cm):
+def get_result(cm):
     tp = cm[0][0]  # normal as normal
     fp = cm[0][1]  # normal predicted as attack
     fn = cm[1][0]  # attack predicted as normal

@@ -18,7 +18,7 @@ from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, r
 from tensorflow.python.client import device_lib
 
 from sklearn.model_selection import train_test_split
-from utils import parse_data, OptimizerFactory, set_seed, GetEpoch, result
+from utils import parse_data, OptimizerFactory, set_seed, GetEpoch, get_result
 from layer_wise_autoencoder import partial_ae_factory
 import os
 from pathlib import Path
@@ -464,7 +464,7 @@ def train_cf(x_train, y_train, x_val, y_val, params):
     Y_predicted = np.argmax(Y_predicted, axis=1)
 
     cm_val = confusion_matrix(y_val, Y_predicted)
-    results_val = result(cm_val)
+    results_val = get_result(cm_val)
     epochs = get_epoch.stopped_epoch
 
     del x_train, x_val, y_train, y_val, Y_predicted
@@ -539,7 +539,7 @@ def hyperopt_cf(params):
         y_predicted = np.argmax(y_predicted, axis=1)
         YTestGlobal_temp = np.argmax(YTestGlobal, axis=1)
         cm_test = confusion_matrix(YTestGlobal_temp, y_predicted)
-        results_test = result(cm_test)
+        results_test = get_result(cm_test)
 
         tf.keras.backend.clear_session()
 
