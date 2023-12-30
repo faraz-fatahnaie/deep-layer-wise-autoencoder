@@ -23,7 +23,7 @@ from Dataset2Image.main import deepinsight
 from keras.models import Model
 from keras.layers import Input, Dense, Conv2D, Dropout, Flatten
 
-from utils import set_seed
+from utils import set_seed, get_result
 
 # Set GPU device and disable eager execution
 # os.environ['CUDA_VISIBLE_DEVICES'] = '1'
@@ -51,8 +51,11 @@ tid = 0
 
 
 def CNN2(images, y, params=None):
-    print(params)
     global tid
+
+    print(params)
+    K.clear_session()
+
     tid += 1
     x_train, x_test, y_train, y_test = train_test_split(images,
                                                         y,
@@ -72,15 +75,36 @@ def CNN2(images, y, params=None):
     kernel = params["kernel"]
     inputs = Input(shape=(image_size, image_size2, 1))
 
-    X = Conv2D(32, (kernel, kernel), activation='relu', name='conv0')(inputs)
+    X = Conv2D(32, (kernel, kernel),
+               activation='relu',
+               kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+               bias_initializer=tf.keras.initializers.Zeros(),
+               name='conv0')(inputs)
     X = Dropout(rate=params['dropout1'])(X)
-    X = Conv2D(64, (kernel, kernel), activation='relu', name='conv1')(X)
+    X = Conv2D(64, (kernel, kernel),
+               activation='relu',
+               kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+               bias_initializer=tf.keras.initializers.Zeros(),
+               name='conv1')(X)
     X = Dropout(rate=params['dropout2'])(X)
-    X = Conv2D(128, (kernel, kernel), activation='relu', name='conv2')(X)
+    X = Conv2D(128, (kernel, kernel),
+               activation='relu',
+               kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+               bias_initializer=tf.keras.initializers.Zeros(),
+               name='conv2')(X)
     X = Flatten()(X)
-    X = Dense(256, activation='relu', kernel_initializer='glorot_uniform')(X)
-    X = Dense(1024, activation='relu', kernel_initializer='glorot_uniform')(X)
-    X = Dense(2, activation='softmax', kernel_initializer='glorot_uniform')(X)
+    X = Dense(256,
+              activation='relu',
+              kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+              bias_initializer=tf.keras.initializers.Zeros())(X)
+    X = Dense(1024,
+              activation='relu',
+              kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+              bias_initializer=tf.keras.initializers.Zeros())(X)
+    X = Dense(2,
+              activation='softmax',
+              kernel_initializer=tf.keras.initializers.GlorotNormal(seed=0),
+              bias_initializer=tf.keras.initializers.Zeros())(X)
 
     model = Model(inputs, X)
     adam = Adam(params["learning_rate"])
@@ -98,10 +122,14 @@ def CNN2(images, y, params=None):
         verbose=2,
         validation_data=(x_test, y_test),
         batch_size=params["batch"],
-        callbacks=[EarlyStopping(monitor='val_loss', mode='min', patience=10),
-                   ModelCheckpoint(filepath=os.path.join(CHECKPOINT_PATH_, 'best_model.h5'),
-                                   monitor='val_loss',
-                                   save_best_only=True)]
+        callbacks=[
+            EarlyStopping(monitor='val_loss',
+                          mode='min',
+                          patience=10),
+            ModelCheckpoint(filepath=os.path.join(CHECKPOINT_PATH_, 'best_model.h5'),
+                            monitor='val_loss',
+                            save_best_only=True)
+        ]
     )
     train_end_time = time.time()
 
@@ -111,11 +139,8 @@ def CNN2(images, y, params=None):
     y_test = np.argmax(y_test, axis=1)
     Y_predicted = np.argmax(Y_predicted, axis=1)
 
-    cf = confusion_matrix(y_test, Y_predicted)
-    acc = accuracy_score(y_test, Y_predicted)
-    precision = precision_score(y_test, Y_predicted, average='binary')
-    recall = recall_score(y_test, Y_predicted, average='binary')
-    f1 = f1_score(y_test, Y_predicted, average='binary')
+    cm_val = confusion_matrix(y_test, Y_predicted)
+    results_val = get_result(cm_val)
 
     return model, {"tid": tid,
                    "train_time": int(train_end_time - train_start_time),
@@ -124,14 +149,15 @@ def CNN2(images, y, params=None):
                    "batch": params["batch"],
                    "dropout1": params["dropout1"],
                    "dropout2": params["dropout2"],
-                   "TP_val": cf[0][0],
-                   "FP_val": cf[0][1],
-                   "TN_val": cf[1][1],
-                   "FN_val": cf[1][0],
-                   "OA_val": acc,
-                   "P_val": precision,
-                   "R_val": recall,
-                   "F1_val": f1
+                   "TP_val": cm_val[0][0],
+                   "FP_val": cm_val[0][1],
+                   "TN_val": cm_val[1][1],
+                   "FN_val": cm_val[1][0],
+                   "OA_val": results_val['OA'],
+                   "P_val": results_val['P'],
+                   "R_val": results_val['R'],
+                   "F1_val": results_val['F1'],
+                   "FAR_val": results_val['FAR'],
                    }
 
 
@@ -150,22 +176,23 @@ def hyperopt_fcn(params):
 
     y_predicted = np.argmax(y_predicted, axis=1)
     YTestGlobal_temp = np.argmax(YTestGlobal, axis=1)
-    cf = confusion_matrix(YTestGlobal_temp, y_predicted)
 
-    K.clear_session()
+    cm_test = confusion_matrix(YTestGlobal_temp, y_predicted)
+    results_test = get_result(cm_test)
+
     SavedParameters.append(val)
-
-    SavedParameters[-1].update(
-        {"test_time": int(test_elapsed_time),
-         "TP_test": cf[0][0],
-         "FP_test": cf[0][1],
-         "FN_test": cf[1][0],
-         "TN_test": cf[1][1],
-         "OA_test": metrics.accuracy_score(YTestGlobal_temp, y_predicted),
-         "P_test": metrics.precision_score(YTestGlobal_temp, y_predicted, average='binary'),
-         "R_test": metrics.recall_score(YTestGlobal_temp, y_predicted, average='binary'),
-         "F1_test": metrics.f1_score(YTestGlobal_temp, y_predicted, average='binary'),
-         })
+    SavedParameters[-1].update({
+        "test_time": int(test_elapsed_time),
+        "TP_test": cm_test[0][0],
+        "FP_test": cm_test[0][1],
+        "FN_test": cm_test[1][0],
+        "TN_test": cm_test[1][1],
+        "OA_test": results_test['OA'],
+        "P_test": results_test['P'],
+        "R_test": results_test['R'],
+        "F1_test": results_test['F1'],
+        "FAR_test": results_test['FAR'],
+    })
 
     # Save model
     if SavedParameters[-1]["F1_val"] > best_val_acc:
