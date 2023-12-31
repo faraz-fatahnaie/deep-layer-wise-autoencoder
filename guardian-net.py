@@ -19,7 +19,7 @@ from tensorflow.python.client import device_lib
 
 from sklearn.model_selection import train_test_split
 from utils import parse_data, OptimizerFactory, set_seed, GetEpoch, get_result
-from layer_wise_autoencoder import partial_ae_factory
+from partial_autoencoder import partial_ae_factory
 import os
 from pathlib import Path
 from configs.setting_DAE import setting_DAE
@@ -629,7 +629,7 @@ def train_DAE(dataset_name):
 
     i = 1
     flag = True
-    project = 'DAE'
+    project = 'GuardianNet'
     config = {}
     BASE_DIR = Path(__file__).resolve().parent
     while flag:
@@ -640,15 +640,15 @@ def train_DAE(dataset_name):
         config_file = json.load(config_file)
         config = setting_DAE(config_file=config_file, project=project)
         TEMP_FILENAME = f"{config['DATASET_NAME']}-{config['CLASSIFICATION_MODE']}-{config['MODEL_NAME']}-{i}"
-        TEMP_PATH = BASE_DIR.joinpath(f"session_{project}/{TEMP_FILENAME}")
+        TEMP_PATH = BASE_DIR.joinpath(f"session-{project}/{TEMP_FILENAME}")
 
         if os.path.isdir(TEMP_PATH):
             i += 1
         else:
             flag = False
 
-            os.mkdir(BASE_DIR.joinpath(f"session_{project}/{TEMP_FILENAME}"))
-            SAVE_PATH_ = BASE_DIR.joinpath(f"session_{project}/{TEMP_FILENAME}")
+            os.mkdir(os.path.join(TEMP_PATH))
+            SAVE_PATH_ = BASE_DIR.joinpath(TEMP_PATH)
 
             os.mkdir(BASE_DIR.joinpath(f'{SAVE_PATH_}/model_checkpoint'))
             CHECKPOINT_PATH_ = SAVE_PATH_.joinpath(f"model_checkpoint/")

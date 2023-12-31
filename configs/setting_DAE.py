@@ -2,10 +2,10 @@ from pathlib import Path
 import json
 
 
-def setting_DAE(config_file: json = None, project: str = 'DAE'):
+def setting_DAE(config_file: json = None, project: str = 'GuardianNet'):
     config = dict()
     BASE_DIR = Path(__file__).resolve().parent.parent
-    BASE_DIR.joinpath(f'session_{project}').mkdir(exist_ok=True)
+    BASE_DIR.joinpath(f'session-{project}').mkdir(exist_ok=True)
     BASE_DIR.joinpath('trained_ae').mkdir(exist_ok=True)
 
     config['SEED'] = config_file['seed']
