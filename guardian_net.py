@@ -620,7 +620,7 @@ def train_DAE(dataset_name):
         config_file = json.load(config_file)
         config = setting_DAE(config_file=config_file, project=project)
         TEMP_FILENAME = f"{config['DATASET_NAME']}-{config['CLASSIFICATION_MODE']}-{config['MODEL_NAME']}-{i}"
-        TEMP_PATH = BASE_DIR.joinpath(f"session-{project}/{TEMP_FILENAME}")
+        TEMP_PATH = BASE_DIR.joinpath(f"session_{project}/{TEMP_FILENAME}")
 
         if os.path.isdir(TEMP_PATH):
             i += 1
