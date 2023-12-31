@@ -13,8 +13,7 @@ from tensorflow.python.keras.layers.recurrent_v2 import LSTM
 
 from tensorflow.keras.layers import Dense, LSTM, Bidirectional, Dropout, Flatten, Concatenate
 from tensorflow.keras.optimizers import Adam
-from sklearn import metrics
-from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import confusion_matrix
 from tensorflow.python.client import device_lib
 
 from sklearn.model_selection import train_test_split
@@ -26,28 +25,9 @@ from configs.setting_DAE import setting_DAE
 import json
 import gc
 
-# tf.compat.v1.disable_eager_execution()
-# os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 # tf.config.set_visible_devices([], 'GPU')
 # tf.config.set_visible_devices(tf.config.list_physical_devices('CPU'), 'CPU')
 # print(device_lib.list_local_devices())
-# gpus = tf.config.list_physical_devices('GPU')
-# device = '/GPU:0' if tf.config.list_physical_devices('GPU') else '/CPU:0'
-# print(device)
-# if device == '/GPU:0':
-#     # Set TensorFlow to use GPU
-#     try:
-#         # Restrict TensorFlow to only allocate memory as needed
-#         tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
-#
-#         # Set the device to GPU
-#         tf.config.experimental.set_visible_devices(tf.config.list_physical_devices('GPU')[0], 'GPU')
-#         print("Using GPU for computations.")
-#     except RuntimeError as e:
-#         print(e)
-#         print("Error occurred. Using CPU instead.")
-# else:
-#     print("No GPU available. Using CPU for computations.")
 
 config = dict()
 
