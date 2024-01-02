@@ -188,13 +188,14 @@ if __name__ == "__main__":
     # df = pd.read_csv(df_path)
     # shuffle_dataframe(df)
 
-    TP = 715402
+    TP = 709442
 
-    FP = 7302
+    FP = 13262
 
-    FN = 5273
+    FN = 7133
 
-    TN = 172023
+    TN = 170163
 
     cm = [[TP, FP], [FN, TN]]
-    get_result(cm)
+    res = get_result(cm)
+    print(res)
