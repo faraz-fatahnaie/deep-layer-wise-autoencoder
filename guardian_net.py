@@ -318,6 +318,37 @@ def DAE(params_ae, method: str = 'layer-wise'):
                               }
 
 
+def hyperopt_DAE(params_ae, method):
+    global SavedParametersAE
+    global best_loss
+    global best_ae
+    global best_params
+
+    ae, param = DAE(params_ae, method)
+
+    SavedParametersAE.append(param)
+    # Save model
+    if SavedParametersAE[-1]["val_loss"] < best_loss:
+        print("new saved model:" + str(SavedParametersAE[-1]))
+        best_ae = ae
+        best_params = param
+        ae.save(os.path.join(SAVE_PATH_, Name.replace(".csv", "ae_model.h5")))
+        del ae
+        best_loss = SavedParametersAE[-1]["val_loss"]
+
+    SavedParametersAE = sorted(SavedParametersAE, key=lambda i: i['val_loss'])
+
+    try:
+        with open((os.path.join(SAVE_PATH_, 'best_result_ae.csv')), 'w', newline='') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=SavedParametersAE[0].keys())
+            writer.writeheader()
+            writer.writerows(SavedParametersAE)
+    except IOError:
+        print("I/O error")
+    gc.collect()
+    # return {'loss': val["loss"], 'status': STATUS_OK}
+
+
 def train_cf(x_train, y_train, x_val, y_val, params):
     global tid
     global best_ae
@@ -562,38 +593,7 @@ def hyperopt_cf(params):
     return {'loss': loss_hp, 'status': STATUS_OK}
 
 
-def hyperopt_ae(params_ae, method):
-    global SavedParametersAE
-    global best_loss
-    global best_ae
-    global best_params
-
-    ae, param = DAE(params_ae, method)
-
-    SavedParametersAE.append(param)
-    # Save model
-    if SavedParametersAE[-1]["val_loss"] < best_loss:
-        print("new saved model:" + str(SavedParametersAE[-1]))
-        best_ae = ae
-        best_params = param
-        ae.save(os.path.join(SAVE_PATH_, Name.replace(".csv", "ae_model.h5")))
-        del ae
-        best_loss = SavedParametersAE[-1]["val_loss"]
-
-    SavedParametersAE = sorted(SavedParametersAE, key=lambda i: i['val_loss'])
-
-    try:
-        with open((os.path.join(SAVE_PATH_, 'best_result_ae.csv')), 'w', newline='') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=SavedParametersAE[0].keys())
-            writer.writeheader()
-            writer.writerows(SavedParametersAE)
-    except IOError:
-        print("I/O error")
-    gc.collect()
-    # return {'loss': val["loss"], 'status': STATUS_OK}
-
-
-def train_DAE(dataset_name):
+def train_GuardianNet(dataset_name):
     global YGlobal
     global YValGlobal
     global YTestGlobal
@@ -680,7 +680,7 @@ def train_DAE(dataset_name):
         params_ae = {keys[i]: combination[i] for i in range(len(keys))}
         params_ae['ae_unit'] = 128
         params_ae['ae_batch'] = 32
-        hyperopt_ae(params_ae, config['AE_METHOD'])
+        hyperopt_DAE(params_ae, config['AE_METHOD'])
 
     print(best_params)
 
@@ -735,4 +735,4 @@ if __name__ == '__main__':
     else:
         result_path = None
 
-    train_DAE(args.dataset)
+    train_GuardianNet(args.dataset)
