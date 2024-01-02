@@ -153,7 +153,7 @@ if __name__ == '__main__':
 
     preprocessor = Preprocessor(dataset_path=data_path,
                                 save_path=base_path,
-                                label_col_name='classification',
+                                label_col_name='label',
                                 norm_method='normalization')
     preprocessor.preprocess()
     train_preprocessed, test_preprocessed = preprocessor.__getitem__()
