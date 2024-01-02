@@ -378,11 +378,12 @@ def train_cf(x_train, y_train, x_val, y_val, params):
 
         for n in range(config['N_LAYER']):
             if n == config['N_LAYER'] - 1:
-                cf.add(LSTM(params[f'unit{n+1}'], return_sequences=True,
+                cf.add(LSTM(params[f'unit{n+1}'],
                             kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
                             bias_initializer=tf.keras.initializers.Zeros()))
             else:
                 cf.add(LSTM(params[f'unit{n + 1}'],
+                            return_sequences=True,
                             kernel_initializer=tf.keras.initializers.GlorotNormal(seed=config['SEED']),
                             bias_initializer=tf.keras.initializers.Zeros()))
 
