@@ -197,4 +197,4 @@ if __name__ == "__main__":
     TN = 172023
 
     cm = [[TP, FP], [FN, TN]]
-    result(cm)
+    get_result(cm)
